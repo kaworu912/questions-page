@@ -73,12 +73,11 @@
       cursor: pointer;
       box-sizing: border-box;
     }
-    /* --- 修改 --- : 調整下拉選單與按鈕的字體大小 */
     select, button {
         font-size: 16px;
     }
     #start-quiz-btn {
-        font-size: 18px; /* 讓開始按鈕更突出 */
+        font-size: 18px;
     }
 
 
@@ -234,12 +233,10 @@
         "第三十六章 妨害電腦使用罪"
     ];
     
-    // 全域變數
     let allQuestionsForSubject = [], currentQuestions = [], originalQuizQuestions = [];
     let currentQuestionIndex = 0, correctCount = 0, wrongCount = 0, scorePoints = 0, completedCount = 0;
     let isInReviewMode = false;
 
-    // DOM 元素
     const setupContainer = document.getElementById("setup-container");
     const quizContainer = document.getElementById("quiz-container");
     const startQuizBtn = document.getElementById("start-quiz-btn");
@@ -265,7 +262,6 @@
         startQuizBtn.addEventListener("click", startQuiz);
     }
     
-    // --- 修改 --- : 更新刑法的模式選項
     function updateModeAndChapterSelectors() {
         const selectedSubject = subjectSelect.value;
         const currentModeValue = modeSelect.value;
@@ -307,7 +303,6 @@
         optionsArray.forEach((optionText, index) => {
             const option = document.createElement('option');
             const isFirstOption = (index === 0);
-            // 如果指定 useRandomForFirst 且是第一個選項，其 value 設為 'random'
             const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText;
             option.value = value;
             option.textContent = optionText;
@@ -318,7 +313,7 @@
         }
     }
 
-    // --- 修改 --- : 核心讀取邏輯，支援多檔案合併
+    // --- 修改 --- : 更新路徑產生邏輯以適應新的資料夾結構
     async function startQuiz() {
         setupContainer.style.display = 'none';
         localStorage.setItem('selectedSubject', subjectSelect.value);
@@ -333,44 +328,25 @@
             let questions = [];
             if (selectedSubject === '刑法') {
                 if (selectedMode === '隨機出題(歷屆試題300題)') {
-                    console.log(`讀取檔案: ${subjectInfo.file}`);
-                    const response = await fetch(subjectInfo.file);
-                    if (!response.ok) throw new Error(`檔案 ${subjectInfo.file} 讀取失敗`);
-                    questions = await response.json();
+                    questions = await fetchJson(subjectInfo.file);
                 } else if (selectedMode === '隨機出題(歷屆+模擬)') {
-                    const paths = [subjectInfo.file, '刑法/總則.json', '刑法/分則.json'];
-                    console.log(`正在合併讀取檔案: ${paths.join(', ')}`);
-                    // Promise.all 會同時發出多個讀取請求
-                    const responses = await Promise.all(paths.map(path => fetch(path)));
-                    // 檢查是否所有請求都成功
-                    for (const response of responses) {
-                        if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`);
-                    }
-                    // 將所有回應的 JSON 內容解析出來
-                    const jsonDataArrays = await Promise.all(responses.map(res => res.json()));
-                    // 將多個題目陣列合併成一個
-                    questions = [].concat(...jsonDataArrays);
-
-                } else if (selectedMode === '總則(模擬)' || selectedMode === '分則(模擬)') {
-                    let filePath;
-                    if (selectedChapter === 'random') {
-                        // 從 "總則(模擬)" 中取出 "總則"
-                        const baseName = selectedMode.replace('(模擬)', '');
-                        filePath = `刑法/${baseName}.json`;
-                    } else {
-                        filePath = `刑法/${selectedChapter}.json`;
-                    }
-                    console.log(`讀取檔案: ${filePath}`);
-                    const response = await fetch(filePath);
-                    if (!response.ok) throw new Error(`檔案 ${filePath} 讀取失敗`);
-                    questions = await response.json();
+                    const paths = [
+                        subjectInfo.file,          // 刑法.json
+                        '刑法/總則/總則.json',   // 新路徑
+                        '刑法/分則/分則.json'    // 新路徑
+                    ];
+                    questions = await fetchMultipleJson(paths);
+                } else if (selectedMode === '總則(模擬)') {
+                    const subFolder = '總則';
+                    const fileName = (selectedChapter === 'random') ? '總則' : selectedChapter;
+                    questions = await fetchJson(`刑法/${subFolder}/${fileName}.json`);
+                } else if (selectedMode === '分則(模擬)') {
+                    const subFolder = '分則';
+                    const fileName = (selectedChapter === 'random') ? '分則' : selectedChapter;
+                    questions = await fetchJson(`刑法/${subFolder}/${fileName}.json`);
                 }
             } else {
-                // 其他科目的邏輯
-                console.log(`讀取檔案: ${subjectInfo.file}`);
-                const response = await fetch(subjectInfo.file);
-                if (!response.ok) throw new Error(`檔案 ${subjectInfo.file} 讀取失敗`);
-                questions = await response.json();
+                questions = await fetchJson(subjectInfo.file);
             }
             
             if (!questions || questions.length === 0) {
@@ -387,8 +363,25 @@
             returnToSetupScreen();
         }
     }
-    
-    // 以下為既有函式，僅做微調與修正
+
+    // --- 新增 --- : 讀取單一 JSON 檔案的輔助函式
+    async function fetchJson(path) {
+        console.log(`讀取檔案: ${path}`);
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`檔案 ${path} 讀取失敗`);
+        return response.json();
+    }
+
+    // --- 新增 --- : 讀取並合併多個 JSON 檔案的輔助函式
+    async function fetchMultipleJson(paths) {
+        console.log(`正在合併讀取檔案: ${paths.join(', ')}`);
+        const responses = await Promise.all(paths.map(path => fetch(path)));
+        for (const response of responses) {
+            if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`);
+        }
+        const jsonDataArrays = await Promise.all(responses.map(res => res.json()));
+        return [].concat(...jsonDataArrays);
+    }
     
     function initializeQuiz(questionsToUse, isNewQuiz = false) {
       renderQuizUI();
@@ -408,7 +401,6 @@
       }
       
       currentQuestions = questionsSource; 
-      // 移除 originalQuizQuestions，因為檢討模式已修正為直接使用 currentQuestions
       currentQuestionIndex = 0;
       correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0;
       
@@ -488,7 +480,7 @@
                 returnToSetupScreen();
                 return;
             }
-            initializeQuiz(wrongQuestions, true); // 錯題重考視為新測驗
+            initializeQuiz(wrongQuestions, true);
         });
 
         finishQuizBtn.addEventListener('click', returnToSetupScreen);
