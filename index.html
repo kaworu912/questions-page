@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>多科目答題系統</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      font-size: 14px;
+      padding: 10px;
+      line-height: 1.6;
+      max-width: 600px;
+      margin: auto;
+    }
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .selector-group {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+    .subject-selector-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    label, select {
+      font-size: 14px;
+    }
+    select, button {
+      padding: 6px 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .subject-selector-group label, .subject-selector-group select {
+      margin: 0;
+    }
+    #quiz-area {
+      touch-action: pan-y; 
+    }
+    .question-box {
+      margin-top: 20px;
+      font-size: 18px;
+      min-height: 200px; 
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .option {
+      display: block;
+      margin: 8px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+      font-size: 18px;
+      user-select: none;
+      width: 100%; 
+      box-sizing: border-box;
+    }
+    .option.correct {
+      background-color: #e2f7e1;
+      border-color: #c3e6cb;
+    }
+    .option.incorrect {
+      background-color: #f8d7da;
+      border-color: #f5c6cb;
+    }
+    #result {
+      margin-top: 15px;
+      padding: 10px;
+      border: 1px solid #eee;
+      border-radius: 5px;
+      background-color: #fafafa;
+      font-size: 18px;
+      line-height: 1.7;
+      display: none;
+    }
+    #score {
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    .button-group {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #reset-btn {
+      margin-left: auto;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 20px 30px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .modal-content h3 {
+      margin-top: 0;
+    }
+    .modal-buttons button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header-container">
+    <div class="selector-group">
+      <div class="subject-selector-group">
+        <label for="subject-select">請選擇科目：</label>
+        <select id="subject-select"></select>
+      </div>
+      <div class="subject-selector-group">
+        <label for="question-quantity-select">題目數量：</label>
+        <select id="question-quantity-select">
+          <option value="10">10題</option>
+          <option value="20">20題</option>
+          <option value="30">30題</option>
+          <option value="50">50題</option>
+          <option value="all">全部</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="quiz-area">
+    <div class="question-box" id="question-box"></div>
+    <div id="result"></div>
+  </div>
+  
+  <div id="score"></div>
+  <div class="button-group">
+    <button id="prev-btn" disabled>上一題</button>
+    <button id="explanation-btn" disabled>看解析</button>
+    <button id="next-btn" disabled>下一題</button>
+    <button id="calculate-btn" disabled style="display: none;">結算</button>
+    <button id="reset-btn">重新開始</button>
+  </div>
+
+  <div id="end-quiz-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h3>測驗結束！</h3>
+      <p id="modal-score-summary"></p>
+      <div class="modal-buttons">
+        <button id="review-wrong-btn">錯題檢討</button>
+        <button id="finish-quiz-btn">結束</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const subjects = [
+        { name: "監獄行刑法", file: "監獄行刑法.json" },
+        { name: "刑法", file: "刑法.json" },
+        { name: "法學緒論", file: "法學緒論.json" },
+        { name: "犯罪學", file: "犯罪學.json" },
+        { name: "監獄學", file: "監獄學.json" },
+        { name: "模擬試題", file: "模擬試題.json" }
+    ];
+
+    let allQuestionsForSubject = []; 
+    let currentQuestions = [];
+    let currentQuestionIndex = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let scorePoints = 0;
+    let completedCount = 0;
+
+    // DOM Elements
+    const subjectSelect = document.getElementById("subject-select");
+    const questionQuantitySelect = document.getElementById("question-quantity-select");
+    const quizArea = document.getElementById("quiz-area"); 
+    const questionBox = document.getElementById("question-box");
+    const result = document.getElementById("result");
+    const score = document.getElementById("score");
+    const nextBtn = document.getElementById("next-btn");
+    const prevBtn = document.getElementById("prev-btn");
+    const calculateBtn = document.getElementById("calculate-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const explanationBtn = document.getElementById("explanation-btn");
+    const endQuizModal = document.getElementById("end-quiz-modal");
+    const modalScoreSummary = document.getElementById("modal-score-summary");
+    const reviewWrongBtn = document.getElementById("review-wrong-btn");
+    const finishQuizBtn = document.getElementById("finish-quiz-btn");
+    
+    // Touch event variables
+    let touchstartX = 0;
+    let touchendX = 0;
+    const swipeThreshold = 75; // *** 敏感度調整點：數值越大，越不敏感 ***
+
+    function setupSubjectSelector() {
+        subjectSelect.innerHTML = '';
+        subjects.forEach(subject => {
+            const option = document.createElement('option');
+            option.value = subject.name;
+            option.textContent = subject.name;
+            subjectSelect.appendChild(option);
+        });
+        
+        setupEventListeners();
+        loadSubjectAndStartQuiz();
+    }
+    
+    function setupEventListeners() {
+        subjectSelect.addEventListener("change", loadSubjectAndStartQuiz);
+        questionQuantitySelect.addEventListener("change", loadSubjectAndStartQuiz);
+        
+        prevBtn.addEventListener("click", previousQuestion);
+        explanationBtn.addEventListener("click", toggleExplanation);
+        nextBtn.addEventListener("click", nextQuestion);
+        calculateBtn.addEventListener("click", showEndQuizModal);
+        resetBtn.addEventListener("click", startNewQuiz);
+
+        quizArea.addEventListener('touchstart', e => {
+            touchstartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+
+        quizArea.addEventListener('touchend', e => {
+            touchendX = e.changedTouches[0].screenX;
+            handleGesture();
+        }, { passive: true });
+
+        reviewWrongBtn.addEventListener('click', () => {
+            endQuizModal.style.display = 'none';
+            const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect);
+            if (wrongQuestions.length === 0) {
+                alert("恭喜您，全部答對！沒有錯題可以檢討。");
+                startNewQuiz();
+                return;
+            }
+            initializeQuiz(wrongQuestions, true);
+        });
+
+        finishQuizBtn.addEventListener('click', () => {
+            endQuizModal.style.display = 'none';
+            startNewQuiz();
+        });
+    }
+
+    async function loadSubjectAndStartQuiz() {
+        const selectedSubject = subjects.find(s => s.name === subjectSelect.value);
+        if (!selectedSubject) {
+            console.error("找不到對應的科目檔案");
+            return;
+        }
+
+        try {
+            const response = await fetch(selectedSubject.file); 
+            if (!response.ok) {
+                throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+            }
+            allQuestionsForSubject = await response.json();
+            initializeQuiz(allQuestionsForSubject);
+
+        } catch (error) {
+            console.error("載入題庫失敗:", error);
+            if (error instanceof SyntaxError) {
+                questionBox.innerHTML = `<p><b>錯誤：</b>題庫檔案 <b>${selectedSubject.file}</b> 格式不正確。<br>請檢查JSON語法，例如物件之間是否缺少逗號。</p>`;
+            } else {
+                questionBox.innerHTML = `<p><b>錯誤：</b>無法載入題庫。<br>請檢查 <b>${selectedSubject.file}</b> 檔案是否存在、檔名是否正確，或網路是否有問題。</p>`;
+            }
+            // Reset UI
+            score.textContent = '';
+            const optionsContainer = document.getElementById('options-container');
+            if(optionsContainer) optionsContainer.remove();
+            prevBtn.disabled = true;
+            nextBtn.disabled = true;
+            explanationBtn.disabled = true;
+            calculateBtn.style.display = "none";
+        }
+    }
+    
+    function initializeQuiz(questionsToUse, isReviewWrong = false) {
+      let questionsSource = JSON.parse(JSON.stringify(questionsToUse));
+      
+      questionsSource.forEach(q => {
+          q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null };
+          delete q.shuffledOptions;
+      });
+      
+      if (!isReviewWrong) {
+          const selectedQuantity = questionQuantitySelect.value;
+          if (selectedQuantity !== "all") {
+              const selectedMaxQuestions = parseInt(selectedQuantity);
+              if (questionsSource.length > selectedMaxQuestions) {
+                  shuffleArray(questionsSource);
+                  questionsSource = questionsSource.slice(0, selectedMaxQuestions);
+              }
+          }
+      }
+      
+      currentQuestions = questionsSource;
+      
+      currentQuestionIndex = 0;
+      correctCount = 0;
+      wrongCount = 0;
+      scorePoints = 0;
+      completedCount = 0;
+      
+      nextBtn.textContent = "下一題";
+      nextBtn.style.display = "inline-block";
+      calculateBtn.style.display = "none";
+      calculateBtn.disabled = true;
+      showQuestion();
+    }
+
+    function showQuestion() {
+      result.style.display = 'none';
+      explanationBtn.textContent = "看解析";
+      updateScore();
+      
+      if (!currentQuestions || currentQuestions.length === 0) {
+        questionBox.innerHTML = "<p>此科目沒有題目。</p>";
+        // ... (disable buttons)
+        return;
+      }
+
+      questionBox.innerHTML = "";
+      const q = currentQuestions[currentQuestionIndex];
+      const questionEl = document.createElement("div");
+      questionEl.innerHTML = `<strong>Q${currentQuestionIndex + 1}：</strong>${q.question}`;
+      questionBox.appendChild(questionEl);
+
+      let optionsContainer = document.createElement("div");
+      optionsContainer.id = "options-container";
+      questionBox.appendChild(optionsContainer);
+
+      if (!q.shuffledOptions) {
+          q.shuffledOptions = [...q.options];
+          shuffleArray(q.shuffledOptions);
+      }
+
+      q.shuffledOptions.forEach(optionText => {
+        const optionDiv = document.createElement("div");
+        optionDiv.className = "option";
+        optionDiv.textContent = optionText;
+        optionsContainer.appendChild(optionDiv);
+
+        optionDiv.addEventListener("click", () => handleOptionClick(optionDiv, optionText));
+      });
+      
+      updateButtonStates();
+      
+      if (q.userAttempt.answered) {
+         showAnswerResult();
+      } 
+    }
+
+    function handleOptionClick(selectedDiv, optionText) {
+        const q = currentQuestions[currentQuestionIndex];
+        if (q.userAttempt.answered) return;
+        
+        q.userAttempt.answered = true;
+        const chosenIndex = q.options.indexOf(optionText);
+        q.userAttempt.choiceIndex = chosenIndex;
+        q.userAttempt.wasCorrect = (chosenIndex === q.answer);
+
+        if (q.userAttempt.wasCorrect) {
+            correctCount++;
+            scorePoints += (100 / currentQuestions.length);
+        } else {
+            wrongCount++;
+        }
+        completedCount++;
+        
+        showAnswerResult();
+        updateScore();
+        updateButtonStates();
+    }
+    
+    function showAnswerResult() {
+        const q = currentQuestions[currentQuestionIndex];
+        const optionsContainer = document.getElementById("options-container");
+        if (!optionsContainer) return;
+
+        Array.from(optionsContainer.children).forEach(el => {
+            el.style.pointerEvents = "none";
+            const originalIndexOfEl = q.options.indexOf(el.textContent);
+            if (originalIndexOfEl === q.answer) {
+                el.classList.add("correct");
+            }
+            if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) {
+                 el.classList.add("incorrect");
+            }
+        });
+    }
+
+    function updateButtonStates() {
+        prevBtn.disabled = currentQuestionIndex === 0;
+        explanationBtn.disabled = false;
+        
+        const q = currentQuestions[currentQuestionIndex];
+        nextBtn.disabled = !q.userAttempt.answered || currentQuestionIndex === currentQuestions.length - 1;
+        
+        if (completedCount === currentQuestions.length) {
+          nextBtn.style.display = "none";
+          calculateBtn.style.display = "inline-block";
+          calculateBtn.disabled = false;
+        } else {
+          nextBtn.style.display = "inline-block";
+          calculateBtn.style.display = 'none';
+        }
+    }
+    
+    function showEndQuizModal() {
+        modalScoreSummary.textContent = `最終得分：${scorePoints.toFixed(2)}分 (答對 ${correctCount} 題 / 答錯 ${wrongCount} 題)`;
+        endQuizModal.style.display = 'flex';
+    }
+    
+    function toggleExplanation() {
+      const q = currentQuestions[currentQuestionIndex];
+      const btn = document.getElementById("explanation-btn");
+      if (result.style.display === 'none') {
+        const explanationText = q.explanation && q.explanation.trim() !== "" ? q.explanation : "此題沒有提供解析。";
+        result.innerHTML = `解析：<br>${explanationText.replace(/\n/g, '<br>')}`;
+        result.style.display = 'block';
+        btn.textContent = '隱藏解析';
+      } else {
+        result.style.display = 'none';
+        btn.textContent = '看解析';
+      }
+    }
+
+    function nextQuestion() {
+      if (currentQuestionIndex < currentQuestions.length - 1) {
+        currentQuestionIndex++;
+        showQuestion();
+      }
+    }
+
+    function previousQuestion() {
+      if (currentQuestionIndex > 0) {
+        currentQuestionIndex--;
+        showQuestion();
+      }
+    }
+    
+    function handleGesture() {
+        const q = currentQuestions[currentQuestionIndex];
+        
+        // 向左滑動 (下一題)
+        if (touchendX < touchstartX - swipeThreshold) {
+            if (!nextBtn.disabled) {
+                nextQuestion();
+            }
+        }
+        
+        // 向右滑動 (上一題)
+        if (touchendX > touchstartX + swipeThreshold) {
+            if (!prevBtn.disabled) {
+                previousQuestion();
+            }
+        }
+    }
+
+    function startNewQuiz() {
+      loadSubjectAndStartQuiz();
+    }
+
+    function updateScore() {
+        const totalScore = parseFloat(scorePoints.toFixed(2));
+        const totalQuestions = currentQuestions.length;
+        score.textContent = `✔️ 答對：${correctCount} 題　❌ 答錯：${wrongCount} 題　總分：${totalScore} 分 (已完成 ${completedCount} / ${totalQuestions} 題)`;
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', setupSubjectSelector);
+  </script>
+</body>
+</html>
