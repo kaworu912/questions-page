@@ -61,7 +61,7 @@
       align-items: center;
       gap: 8px;
     }
-    label, select {
+    label {
       font-size: 14px;
     }
     select, button {
@@ -71,9 +71,17 @@
       border-radius: 4px;
       border: 1px solid #ccc;
       cursor: pointer;
-      font-size: 14px;
       box-sizing: border-box;
     }
+    /* --- 修改 --- : 調整下拉選單與按鈕的字體大小 */
+    select, button {
+        font-size: 16px;
+    }
+    #start-quiz-btn {
+        font-size: 18px; /* 讓開始按鈕更突出 */
+    }
+
+
     #quiz-area {
       touch-action: pan-y; 
     }
@@ -226,16 +234,12 @@
         "第三十六章 妨害電腦使用罪"
     ];
     
-    let allQuestionsForSubject = []; 
-    let currentQuestions = [];
-    let originalQuizQuestions = [];
-    let currentQuestionIndex = 0;
-    let correctCount = 0;
-    let wrongCount = 0;
-    let scorePoints = 0;
-    let completedCount = 0;
+    // 全域變數
+    let allQuestionsForSubject = [], currentQuestions = [], originalQuizQuestions = [];
+    let currentQuestionIndex = 0, correctCount = 0, wrongCount = 0, scorePoints = 0, completedCount = 0;
     let isInReviewMode = false;
 
+    // DOM 元素
     const setupContainer = document.getElementById("setup-container");
     const quizContainer = document.getElementById("quiz-container");
     const startQuizBtn = document.getElementById("start-quiz-btn");
@@ -261,13 +265,20 @@
         startQuizBtn.addEventListener("click", startQuiz);
     }
     
+    // --- 修改 --- : 更新刑法的模式選項
     function updateModeAndChapterSelectors() {
         const selectedSubject = subjectSelect.value;
         const currentModeValue = modeSelect.value;
 
         if (selectedSubject === '刑法') {
-            populateDropdown(modeSelect, ['隨機出題', '總則', '分則']);
-            if (['隨機出題', '總則', '分則'].includes(currentModeValue)) {
+            const criminalLawModes = [
+                '隨機出題(歷屆試題300題)', 
+                '隨機出題(歷屆+模擬)', 
+                '總則(模擬)', 
+                '分則(模擬)'
+            ];
+            populateDropdown(modeSelect, criminalLawModes);
+            if (criminalLawModes.includes(currentModeValue)) {
                 modeSelect.value = currentModeValue;
             }
         } else {
@@ -276,11 +287,11 @@
         
         const newModeValue = modeSelect.value;
         if (selectedSubject === '刑法') {
-            if (newModeValue === '總則') {
-                populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters]);
+            if (newModeValue === '總則(模擬)') {
+                populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters], true);
                 chapterSelectContainer.style.display = 'block';
-            } else if (newModeValue === '分則') {
-                populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters]);
+            } else if (newModeValue === '分則(模擬)') {
+                populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters], true);
                 chapterSelectContainer.style.display = 'block';
             } else {
                 chapterSelectContainer.style.display = 'none';
@@ -290,12 +301,14 @@
         }
     }
     
-    function populateDropdown(selectElement, optionsArray) {
+    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) {
         const currentValue = selectElement.value;
         selectElement.innerHTML = '';
-        optionsArray.forEach(optionText => {
+        optionsArray.forEach((optionText, index) => {
             const option = document.createElement('option');
-            const value = (optionText === '隨機出題') ? 'random' : optionText;
+            const isFirstOption = (index === 0);
+            // 如果指定 useRandomForFirst 且是第一個選項，其 value 設為 'random'
+            const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText;
             option.value = value;
             option.textContent = optionText;
             selectElement.appendChild(option);
@@ -305,52 +318,66 @@
         }
     }
 
+    // --- 修改 --- : 核心讀取邏輯，支援多檔案合併
     async function startQuiz() {
         setupContainer.style.display = 'none';
-        
         localStorage.setItem('selectedSubject', subjectSelect.value);
         localStorage.setItem('selectedQuantity', questionQuantitySelect.value);
 
-        let filePath;
         const selectedSubject = subjectSelect.value;
         const selectedMode = modeSelect.value;
         const selectedChapter = chapterSelect.value;
         const subjectInfo = subjects.find(s => s.name === selectedSubject);
 
-        if (selectedSubject === '刑法') {
-            if (selectedMode === 'random') {
-                filePath = subjectInfo.file; 
-            } else if (selectedMode === '總則') {
-                if (selectedChapter === 'random') {
-                    filePath = '刑法/總則.json';
-                } else {
-                    filePath = `刑法/${selectedChapter}.json`;
-                }
-            } else if (selectedMode === '分則') {
-                 if (selectedChapter === 'random') {
-                    filePath = '刑法/分則.json';
-                } else {
-                    filePath = `刑法/${selectedChapter}.json`;
-                }
-            }
-        } else {
-            filePath = subjectInfo.file;
-        }
-        
-        if (!filePath) {
-            alert("無法確定要載入的題庫檔案，請檢查您的選擇。");
-            returnToSetupScreen();
-            return;
-        }
-
         try {
-            console.log(`正在讀取檔案: ${filePath}`);
-            const response = await fetch(filePath);
-            if (!response.ok) {
-                 throw new Error(`找不到檔案 ${filePath} 或無法讀取。請確認檔案是否存在且檔名完全正確。`);
+            let questions = [];
+            if (selectedSubject === '刑法') {
+                if (selectedMode === '隨機出題(歷屆試題300題)') {
+                    console.log(`讀取檔案: ${subjectInfo.file}`);
+                    const response = await fetch(subjectInfo.file);
+                    if (!response.ok) throw new Error(`檔案 ${subjectInfo.file} 讀取失敗`);
+                    questions = await response.json();
+                } else if (selectedMode === '隨機出題(歷屆+模擬)') {
+                    const paths = [subjectInfo.file, '刑法/總則.json', '刑法/分則.json'];
+                    console.log(`正在合併讀取檔案: ${paths.join(', ')}`);
+                    // Promise.all 會同時發出多個讀取請求
+                    const responses = await Promise.all(paths.map(path => fetch(path)));
+                    // 檢查是否所有請求都成功
+                    for (const response of responses) {
+                        if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`);
+                    }
+                    // 將所有回應的 JSON 內容解析出來
+                    const jsonDataArrays = await Promise.all(responses.map(res => res.json()));
+                    // 將多個題目陣列合併成一個
+                    questions = [].concat(...jsonDataArrays);
+
+                } else if (selectedMode === '總則(模擬)' || selectedMode === '分則(模擬)') {
+                    let filePath;
+                    if (selectedChapter === 'random') {
+                        // 從 "總則(模擬)" 中取出 "總則"
+                        const baseName = selectedMode.replace('(模擬)', '');
+                        filePath = `刑法/${baseName}.json`;
+                    } else {
+                        filePath = `刑法/${selectedChapter}.json`;
+                    }
+                    console.log(`讀取檔案: ${filePath}`);
+                    const response = await fetch(filePath);
+                    if (!response.ok) throw new Error(`檔案 ${filePath} 讀取失敗`);
+                    questions = await response.json();
+                }
+            } else {
+                // 其他科目的邏輯
+                console.log(`讀取檔案: ${subjectInfo.file}`);
+                const response = await fetch(subjectInfo.file);
+                if (!response.ok) throw new Error(`檔案 ${subjectInfo.file} 讀取失敗`);
+                questions = await response.json();
             }
-            allQuestionsForSubject = await response.json();
             
+            if (!questions || questions.length === 0) {
+                throw new Error("成功讀取檔案，但內容為空或格式不符。");
+            }
+            
+            allQuestionsForSubject = questions;
             initializeQuiz(allQuestionsForSubject, true);
             quizContainer.style.display = 'block';
 
@@ -361,35 +388,29 @@
         }
     }
     
+    // 以下為既有函式，僅做微調與修正
+    
     function initializeQuiz(questionsToUse, isNewQuiz = false) {
       renderQuizUI();
       isInReviewMode = false;
       let questionsSource = JSON.parse(JSON.stringify(questionsToUse));
       
-      questionsSource.forEach(q => {
-          q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null };
-          delete q.shuffledOptions;
-      });
-      
       if (isNewQuiz) {
+          questionsSource.forEach(q => {
+              q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null };
+              delete q.shuffledOptions;
+          });
           shuffleArray(questionsSource);
           const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10);
-          
           if (questionsSource.length > selectedMaxQuestions) {
               questionsSource = questionsSource.slice(0, selectedMaxQuestions);
           }
-          
-          originalQuizQuestions = JSON.parse(JSON.stringify(questionsSource));
       }
       
-      // *** 之前的 Bug 發生在這裡附近 ***
-      // 現在，currentQuestions 是用來作答的唯一資料來源
       currentQuestions = questionsSource; 
+      // 移除 originalQuizQuestions，因為檢討模式已修正為直接使用 currentQuestions
       currentQuestionIndex = 0;
-      correctCount = 0;
-      wrongCount = 0;
-      scorePoints = 0;
-      completedCount = 0;
+      correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0;
       
       const nextBtn = document.getElementById("next-btn");
       const calculateBtn = document.getElementById("calculate-btn");
@@ -454,15 +475,11 @@
         calculateBtn.addEventListener("click", showEndQuizModal);
         resetBtn.addEventListener("click", returnToSetupScreen);
         
-        // --- 修正點 1 ---
-        // 完整試卷檢討，應該使用帶有作答紀錄的 `currentQuestions`
         reviewAllBtn.addEventListener('click', () => { 
             endQuizModal.style.display = 'none'; 
             startReviewMode(currentQuestions); 
         });
         
-        // --- 修正點 2 ---
-        // 錯題檢討，也應該從帶有作答紀錄的 `currentQuestions` 中篩選
         reviewWrongBtn.addEventListener('click', () => {
             endQuizModal.style.display = 'none';
             const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect);
@@ -471,8 +488,7 @@
                 returnToSetupScreen();
                 return;
             }
-            // 錯題檢討是讓使用者"重新測驗"這些錯題，所以呼叫 initializeQuiz 是正確的
-            initializeQuiz(wrongQuestions, false); 
+            initializeQuiz(wrongQuestions, true); // 錯題重考視為新測驗
         });
 
         finishQuizBtn.addEventListener('click', returnToSetupScreen);
@@ -591,9 +607,9 @@
     }
 
     function startReviewMode(questions) {
-        renderQuizUI(); // 重新渲染UI以確保按鈕事件正確
+        renderQuizUI();
         isInReviewMode = true;
-        currentQuestions = questions; // 使用傳入的、帶有作答紀錄的題目
+        currentQuestions = questions;
         currentQuestionIndex = 0;
         document.getElementById("score").textContent = "試卷檢討模式";
         document.getElementById("next-btn").textContent = "下一題";
@@ -624,8 +640,7 @@
       }
     }
     
-    let touchstartX = 0;
-    let touchendX = 0;
+    let touchstartX = 0, touchendX = 0;
     function nextQuestion() { if (currentQuestionIndex < currentQuestions.length - 1) { currentQuestionIndex++; showQuestion(); } }
     function previousQuestion() { if (currentQuestionIndex > 0) { currentQuestionIndex--; showQuestion(); } }
     function handleGesture() {
