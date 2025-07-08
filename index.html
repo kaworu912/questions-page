@@ -361,7 +361,6 @@
         }
     }
     
-    // --- 修改 --- : 簡化題目數量處理邏輯
     function initializeQuiz(questionsToUse, isNewQuiz = false) {
       renderQuizUI();
       isInReviewMode = false;
@@ -373,13 +372,9 @@
       });
       
       if (isNewQuiz) {
-          // 隨機排列所有題目
           shuffleArray(questionsSource);
-
-          // 根據選擇的數量擷取題目
           const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10);
           
-          // 只有當題庫總數 > 選擇數量時，才需要擷取。否則就使用全部題目。
           if (questionsSource.length > selectedMaxQuestions) {
               questionsSource = questionsSource.slice(0, selectedMaxQuestions);
           }
@@ -387,7 +382,9 @@
           originalQuizQuestions = JSON.parse(JSON.stringify(questionsSource));
       }
       
-      currentQuestions = questionsSource;
+      // *** 之前的 Bug 發生在這裡附近 ***
+      // 現在，currentQuestions 是用來作答的唯一資料來源
+      currentQuestions = questionsSource; 
       currentQuestionIndex = 0;
       correctCount = 0;
       wrongCount = 0;
@@ -456,17 +453,28 @@
         nextBtn.addEventListener("click", nextQuestion);
         calculateBtn.addEventListener("click", showEndQuizModal);
         resetBtn.addEventListener("click", returnToSetupScreen);
-        reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(originalQuizQuestions); });
+        
+        // --- 修正點 1 ---
+        // 完整試卷檢討，應該使用帶有作答紀錄的 `currentQuestions`
+        reviewAllBtn.addEventListener('click', () => { 
+            endQuizModal.style.display = 'none'; 
+            startReviewMode(currentQuestions); 
+        });
+        
+        // --- 修正點 2 ---
+        // 錯題檢討，也應該從帶有作答紀錄的 `currentQuestions` 中篩選
         reviewWrongBtn.addEventListener('click', () => {
             endQuizModal.style.display = 'none';
-            const wrongQuestions = originalQuizQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect);
+            const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect);
             if (wrongQuestions.length === 0) {
                 alert("恭喜您，全部答對！沒有錯題可以檢討。");
                 returnToSetupScreen();
                 return;
             }
+            // 錯題檢討是讓使用者"重新測驗"這些錯題，所以呼叫 initializeQuiz 是正確的
             initializeQuiz(wrongQuestions, false); 
         });
+
         finishQuizBtn.addEventListener('click', returnToSetupScreen);
         quizArea.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });
         quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true });
@@ -514,6 +522,7 @@
         showAnswerResult();
       } 
     }
+
     function handleOptionClick(selectedDiv, optionText) {
       if (isInReviewMode) return;
       const q = currentQuestions[currentQuestionIndex];
@@ -533,6 +542,7 @@
       updateScore();
       updateButtonStates();
     }
+
     function showAnswerResult() {
       const q = currentQuestions[currentQuestionIndex];
       const optionsContainer = document.getElementById("options-container");
@@ -540,10 +550,15 @@
       Array.from(optionsContainer.children).forEach(el => {
           el.style.pointerEvents = "none";
           const originalIndexOfEl = q.options.indexOf(el.textContent);
-          if (originalIndexOfEl === q.answer) el.classList.add("correct");
-          if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) el.classList.add("incorrect");
+          if (originalIndexOfEl === q.answer) {
+              el.classList.add("correct");
+          }
+          if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) {
+              el.classList.add("incorrect");
+          }
       });
     }
+
     function updateButtonStates() {
         const prevBtn = document.getElementById("prev-btn");
         const nextBtn = document.getElementById("next-btn");
@@ -574,10 +589,11 @@
             }
         }
     }
+
     function startReviewMode(questions) {
-        renderQuizUI();
+        renderQuizUI(); // 重新渲染UI以確保按鈕事件正確
         isInReviewMode = true;
-        currentQuestions = questions;
+        currentQuestions = questions; // 使用傳入的、帶有作答紀錄的題目
         currentQuestionIndex = 0;
         document.getElementById("score").textContent = "試卷檢討模式";
         document.getElementById("next-btn").textContent = "下一題";
@@ -586,11 +602,13 @@
         document.getElementById("reset-btn").textContent = "結束檢討"; 
         showQuestion();
     }
+    
     function showEndQuizModal() {
         document.getElementById("modal-score-summary").textContent = `最終得分：${scorePoints.toFixed(2)}分 (答對 ${correctCount} 題 / 答錯 ${wrongCount} 題)`;
         const endModal = document.getElementById('end-quiz-modal');
         endModal.style.display = 'flex';
     }
+
     function toggleExplanation() {
       const result = document.getElementById("result");
       const q = currentQuestions[currentQuestionIndex];
@@ -605,6 +623,7 @@
         btn.textContent = '看解析';
       }
     }
+    
     let touchstartX = 0;
     let touchendX = 0;
     function nextQuestion() { if (currentQuestionIndex < currentQuestions.length - 1) { currentQuestionIndex++; showQuestion(); } }
