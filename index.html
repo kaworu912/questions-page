@@ -277,8 +277,7 @@
         currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0;
         showQuestion();
     }
-    
-    // --- 修正 --- : 將此函式的完整定義加回來
+
     function returnToSetupScreen() {
         quizContainer.style.display = 'none';
         quizContainer.innerHTML = '';
@@ -290,11 +289,34 @@
     function renderQuizUI() {
         quizContainer.innerHTML = ` <div id="quiz-area"> <div class="question-box" id="question-box"></div> <div id="result" style="display: none;"></div> </div> <div id="score"></div> <div class="button-group"> <button id="prev-btn" disabled>上一題</button> <button id="explanation-btn" disabled>看解析</button> <button id="next-btn" disabled>下一題</button> <button id="calculate-btn" disabled style="display: none;">結算</button> <button id="reset-btn">返回選單</button> <button id="report-btn">回報此題問題</button> </div> `;
         endQuizModal.innerHTML = ` <div class="modal-content"> <h3>測驗結束！</h3> <p id="modal-score-summary"></p> <div class="modal-buttons"> <button id="review-all-btn">查看完整試卷</button> <button id="review-wrong-btn">錯題檢討</button> <button id="finish-quiz-btn">返回選單</button> </div> </div> `;
+        
         const prevBtn = document.getElementById("prev-btn"), explanationBtn = document.getElementById("explanation-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), reportBtn = document.getElementById("report-btn"), reviewAllBtn = document.getElementById("review-all-btn"), reviewWrongBtn = document.getElementById("review-wrong-btn"), finishQuizBtn = document.getElementById("finish-quiz-btn"), quizArea = document.getElementById("quiz-area");
-        prevBtn.addEventListener("click", previousQuestion); explanationBtn.addEventListener("click", toggleExplanation); nextBtn.addEventListener("click", nextQuestion); calculateBtn.addEventListener("click", showEndQuizModal); resetBtn.addEventListener("click", returnToSetupScreen); reportBtn.addEventListener("click", handleReportClick);
-        reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(currentQuestions); });
-        reviewWrongBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect); if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; } initializeQuiz(wrongQuestions, true); });
-        finishQuizBtn.addEventListener('click', returnToSetupScreen);
+        
+        prevBtn.addEventListener("click", previousQuestion);
+        explanationBtn.addEventListener("click", toggleExplanation);
+        nextBtn.addEventListener("click", nextQuestion);
+        calculateBtn.addEventListener("click", showEndQuizModal);
+        resetBtn.addEventListener("click", returnToSetupScreen);
+        reportBtn.addEventListener("click", handleReportClick);
+        
+        reviewAllBtn.addEventListener('click', () => { 
+            endQuizModal.style.display = 'none'; 
+            startReviewMode(currentQuestions); 
+        });
+        
+        reviewWrongBtn.addEventListener('click', () => {
+            endQuizModal.style.display = 'none';
+            const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect);
+            if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; }
+            initializeQuiz(wrongQuestions, true);
+        });
+        
+        // --- 修正 --- : 在點擊按鈕時，先隱藏 modal，再執行返回動作
+        finishQuizBtn.addEventListener('click', () => {
+            endQuizModal.style.display = 'none';
+            returnToSetupScreen();
+        });
+
         quizArea.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });
         quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true });
     }
