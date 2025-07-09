@@ -277,26 +277,46 @@
         currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0;
         showQuestion();
     }
+    
+    // --- 修正 --- : 將此函式的完整定義加回來
+    function returnToSetupScreen() {
+        quizContainer.style.display = 'none';
+        quizContainer.innerHTML = '';
+        endQuizModal.innerHTML = '';
+        setupContainer.style.display = 'flex';
+        updateModeAndChapterSelectors();
+    }
 
     function renderQuizUI() {
         quizContainer.innerHTML = ` <div id="quiz-area"> <div class="question-box" id="question-box"></div> <div id="result" style="display: none;"></div> </div> <div id="score"></div> <div class="button-group"> <button id="prev-btn" disabled>上一題</button> <button id="explanation-btn" disabled>看解析</button> <button id="next-btn" disabled>下一題</button> <button id="calculate-btn" disabled style="display: none;">結算</button> <button id="reset-btn">返回選單</button> <button id="report-btn">回報此題問題</button> </div> `;
         endQuizModal.innerHTML = ` <div class="modal-content"> <h3>測驗結束！</h3> <p id="modal-score-summary"></p> <div class="modal-buttons"> <button id="review-all-btn">查看完整試卷</button> <button id="review-wrong-btn">錯題檢討</button> <button id="finish-quiz-btn">返回選單</button> </div> </div> `;
         const prevBtn = document.getElementById("prev-btn"), explanationBtn = document.getElementById("explanation-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), reportBtn = document.getElementById("report-btn"), reviewAllBtn = document.getElementById("review-all-btn"), reviewWrongBtn = document.getElementById("review-wrong-btn"), finishQuizBtn = document.getElementById("finish-quiz-btn"), quizArea = document.getElementById("quiz-area");
-        prevBtn.addEventListener("click", previousQuestion); explanationBtn.addEventListener("click", toggleExplanation); nextBtn.addEventListener("click", nextQuestion); calculateBtn.addEventListener("click", showEndQuizModal); resetBtn.addEventListener("click", returnToSetupScreen); reportBtn.addEventListener("click", handleReportClick); reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(currentQuestions); }); reviewWrongBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect); if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; } initializeQuiz(wrongQuestions, true); }); finishQuizBtn.addEventListener('click', returnToSetupScreen);
+        prevBtn.addEventListener("click", previousQuestion); explanationBtn.addEventListener("click", toggleExplanation); nextBtn.addEventListener("click", nextQuestion); calculateBtn.addEventListener("click", showEndQuizModal); resetBtn.addEventListener("click", returnToSetupScreen); reportBtn.addEventListener("click", handleReportClick);
+        reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(currentQuestions); });
+        reviewWrongBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect); if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; } initializeQuiz(wrongQuestions, true); });
+        finishQuizBtn.addEventListener('click', returnToSetupScreen);
         quizArea.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });
         quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true });
     }
     
-    // --- 修改 --- : 為選項加上 (A), (B), (C), (D) 前綴
+    function handleReportClick() {
+        const myEmail = 'YOUR_EMAIL@example.com';
+        const q = currentQuestions[currentQuestionIndex];
+        if (!q) { alert("目前沒有題目可回報。"); return; }
+        const subject = `[題庫問題回報] Q${currentQuestionIndex + 1}`;
+        const userChoiceIndex = q.userAttempt.choiceIndex;
+        const userChoiceText = (userChoiceIndex !== null && userChoiceIndex >= 0) ? `(${userChoiceIndex}) ${q.options[userChoiceIndex]}` : '尚未作答';
+        const body = ` 你好，我發現以下題目可能有些問題：\n------------------------------------------------\n題號：Q${currentQuestionIndex + 1}\n科目：${subjectSelect.value}\n模式：${modeSelect.value}\n章節：${chapterSelect.style.display !== 'none' ? chapterSelect.value : '無'}\n------------------------------------------------\n\n【題目內容】\n${q.question}\n\n【選項】\n${q.options.map((opt, i) => `(${i}) ${opt}`).join('\n')}\n\n【紀錄的正確答案】\n(${q.answer}) ${q.options[q.answer]}\n\n【我的選擇】\n${userChoiceText}\n\n【解析】\n${q.explanation || '無'}\n\n------------------------------------------------\n【請在此描述您發現的問題】\n\n(例如：答案錯誤，應為(X)；題目有錯字；解析不清楚；選項(Y)的內容有爭議...)\n\n`;
+        const mailtoLink = `mailto:${myEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailtoLink;
+    }
+    
     function showQuestion() {
       const questionBox = document.getElementById("question-box"), result = document.getElementById("result");
       result.style.display = 'none';
       document.getElementById("explanation-btn").textContent = "看解析";
       if(!isInReviewMode) updateScore();
-      if (!currentQuestions || currentQuestions.length === 0) {
-        questionBox.innerHTML = "<p>此科目沒有題目。</p>";
-        return;
-      }
+      if (!currentQuestions || currentQuestions.length === 0) { questionBox.innerHTML = "<p>此科目沒有題目。</p>"; return; }
       questionBox.innerHTML = "";
       const q = currentQuestions[currentQuestionIndex];
       const questionEl = document.createElement("div");
@@ -305,78 +325,104 @@
       let optionsContainer = document.createElement("div");
       optionsContainer.id = "options-container";
       questionBox.appendChild(optionsContainer);
-      if (!q.shuffledOptions) {
-          q.shuffledOptions = [...q.options];
-          shuffleArray(q.shuffledOptions);
-      }
-      
+      if (!q.shuffledOptions) { q.shuffledOptions = [...q.options]; shuffleArray(q.shuffledOptions); }
       const prefixes = ['(A)', '(B)', '(C)', '(D)'];
       q.shuffledOptions.forEach((optionText, index) => {
         const optionDiv = document.createElement("div");
         optionDiv.className = "option";
-        // 加上 (A), (B)... 前綴
         optionDiv.textContent = `${prefixes[index]} ${optionText}`;
-        // 將原始選項文字儲存在 data attribute 中，以便後續比對
         optionDiv.dataset.originalText = optionText; 
         optionsContainer.appendChild(optionDiv);
         optionDiv.addEventListener("click", () => handleOptionClick(optionDiv));
       });
-      
       updateButtonStates();
-      if (q.userAttempt.answered) {
-        showAnswerResult();
-      } 
+      if (q.userAttempt.answered) { showAnswerResult(); } 
     }
 
-    // --- 修改 --- : 調整點擊事件，以原始文字來判斷答案
     function handleOptionClick(selectedDiv) {
       if (isInReviewMode) return;
       const q = currentQuestions[currentQuestionIndex];
       if (q.userAttempt.answered) return;
-      
-      const originalOptionText = selectedDiv.dataset.originalText; // 從 data attribute 取得原始文字
-      
+      const originalOptionText = selectedDiv.dataset.originalText;
       q.userAttempt.answered = true;
-      const chosenIndex = q.options.indexOf(originalOptionText); // 用原始文字找 index
+      const chosenIndex = q.options.indexOf(originalOptionText);
       q.userAttempt.choiceIndex = chosenIndex;
       q.userAttempt.wasCorrect = (chosenIndex === q.answer);
-      if (q.userAttempt.wasCorrect) {
-          correctCount++;
-          scorePoints += (100 / currentQuestions.length);
-      } else {
-          wrongCount++;
-      }
+      if (q.userAttempt.wasCorrect) { correctCount++; scorePoints += (100 / currentQuestions.length); } else { wrongCount++; }
       completedCount++;
       showAnswerResult();
       updateScore();
       updateButtonStates();
     }
 
-    // --- 修改 --- : 調整答案顯示，以原始文字來判斷
     function showAnswerResult() {
       const q = currentQuestions[currentQuestionIndex];
       const optionsContainer = document.getElementById("options-container");
       if (!optionsContainer) return;
       Array.from(optionsContainer.children).forEach(el => {
           el.style.pointerEvents = "none";
-          const originalText = el.dataset.originalText; // 從 data attribute 取得原始文字
-          const originalIndexOfEl = q.options.indexOf(originalText); // 用原始文字找 index
-          
-          if (originalIndexOfEl === q.answer) {
-              el.classList.add("correct");
-          }
-          if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) {
-              el.classList.add("incorrect");
-          }
+          const originalText = el.dataset.originalText;
+          const originalIndexOfEl = q.options.indexOf(originalText);
+          if (originalIndexOfEl === q.answer) { el.classList.add("correct"); }
+          if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) { el.classList.add("incorrect"); }
       });
     }
+
+    function updateButtonStates() {
+        const prevBtn = document.getElementById("prev-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), explanationBtn = document.getElementById("explanation-btn");
+        prevBtn.disabled = currentQuestionIndex === 0;
+        explanationBtn.disabled = false;
+        const q = currentQuestions[currentQuestionIndex];
+        if (isInReviewMode) {
+            if (resetBtn.textContent !== "結束檢討") resetBtn.textContent = "結束檢討";
+            nextBtn.disabled = currentQuestionIndex === currentQuestions.length - 1;
+            calculateBtn.style.display = 'none';
+        } else {
+            if (resetBtn.textContent !== "返回選單") resetBtn.textContent = "返回選單";
+            nextBtn.disabled = !q.userAttempt.answered || currentQuestionIndex === currentQuestions.length - 1;
+            if (completedCount === currentQuestions.length && currentQuestions.length > 0) {
+              nextBtn.style.display = "none";
+              calculateBtn.style.display = "grid";
+              calculateBtn.disabled = false;
+            } else {
+              nextBtn.style.display = "grid";
+              calculateBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function startReviewMode(questions) {
+        renderQuizUI();
+        isInReviewMode = true;
+        currentQuestions = questions;
+        currentQuestionIndex = 0;
+        document.getElementById("score").textContent = "試卷檢討模式";
+        document.getElementById("next-btn").textContent = "下一題";
+        document.getElementById("next-btn").style.display = "grid";
+        document.getElementById("calculate-btn").style.display = "none";
+        document.getElementById("reset-btn").textContent = "結束檢討"; 
+        showQuestion();
+    }
     
-    // 以下所有函式都維持最新版本，無需修改
-    function handleReportClick() { const myEmail = 'YOUR_EMAIL@example.com'; const q = currentQuestions[currentQuestionIndex]; if (!q) { alert("目前沒有題目可回報。"); return; } const subject = `[題庫問題回報] Q${currentQuestionIndex + 1}`; const userChoiceIndex = q.userAttempt.choiceIndex; const userChoiceText = (userChoiceIndex !== null && userChoiceIndex >= 0) ? `(${userChoiceIndex}) ${q.options[userChoiceIndex]}` : '尚未作答'; const body = ` 你好，我發現以下題目可能有些問題：\n------------------------------------------------\n題號：Q${currentQuestionIndex + 1}\n科目：${subjectSelect.value}\n模式：${modeSelect.value}\n章節：${chapterSelect.style.display !== 'none' ? chapterSelect.value : '無'}\n------------------------------------------------\n\n【題目內容】\n${q.question}\n\n【選項】\n${q.options.map((opt, i) => `(${i}) ${opt}`).join('\n')}\n\n【紀錄的正確答案】\n(${q.answer}) ${q.options[q.answer]}\n\n【我的選擇】\n${userChoiceText}\n\n【解析】\n${q.explanation || '無'}\n\n------------------------------------------------\n【請在此描述您發現的問題】\n\n(例如：答案錯誤，應為(X)；題目有錯字；解析不清楚；選項(Y)的內容有爭議...)\n\n`; const mailtoLink = `mailto:${myEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; window.location.href = mailtoLink; }
-    function updateButtonStates() { const prevBtn = document.getElementById("prev-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), explanationBtn = document.getElementById("explanation-btn"); prevBtn.disabled = currentQuestionIndex === 0; explanationBtn.disabled = false; const q = currentQuestions[currentQuestionIndex]; if (isInReviewMode) { if (resetBtn.textContent !== "結束檢討") resetBtn.textContent = "結束檢討"; nextBtn.disabled = currentQuestionIndex === currentQuestions.length - 1; calculateBtn.style.display = 'none'; } else { if (resetBtn.textContent !== "返回選單") resetBtn.textContent = "返回選單"; nextBtn.disabled = !q.userAttempt.answered || currentQuestionIndex === currentQuestions.length - 1; if (completedCount === currentQuestions.length && currentQuestions.length > 0) { nextBtn.style.display = "none"; calculateBtn.style.display = "grid"; calculateBtn.disabled = false; } else { nextBtn.style.display = "grid"; calculateBtn.style.display = 'none'; } } }
-    function startReviewMode(questions) { renderQuizUI(); isInReviewMode = true; currentQuestions = questions; currentQuestionIndex = 0; document.getElementById("score").textContent = "試卷檢討模式"; document.getElementById("next-btn").textContent = "下一題"; document.getElementById("next-btn").style.display = "grid"; document.getElementById("calculate-btn").style.display = "none"; document.getElementById("reset-btn").textContent = "結束檢討"; showQuestion(); }
-    function showEndQuizModal() { document.getElementById("modal-score-summary").textContent = `最終得分：${scorePoints.toFixed(2)}分 (答對 ${correctCount} 題 / 答錯 ${wrongCount} 題)`; const endModal = document.getElementById('end-quiz-modal'); endModal.style.display = 'flex'; }
-    function toggleExplanation() { const result = document.getElementById("result"), q = currentQuestions[currentQuestionIndex], btn = document.getElementById("explanation-btn"); if (result.style.display === 'none') { const explanationText = q.explanation && q.explanation.trim() !== "" ? q.explanation : "此題沒有提供解析。"; result.innerHTML = `解析：<br>${explanationText.replace(/\n/g, '<br>')}`; result.style.display = 'block'; btn.textContent = '隱藏解析'; } else { result.style.display = 'none'; btn.textContent = '看解析'; } }
+    function showEndQuizModal() {
+        document.getElementById("modal-score-summary").textContent = `最終得分：${scorePoints.toFixed(2)}分 (答對 ${correctCount} 題 / 答錯 ${wrongCount} 題)`;
+        const endModal = document.getElementById('end-quiz-modal');
+        endModal.style.display = 'flex';
+    }
+
+    function toggleExplanation() {
+      const result = document.getElementById("result"), q = currentQuestions[currentQuestionIndex], btn = document.getElementById("explanation-btn");
+      if (result.style.display === 'none') {
+        const explanationText = q.explanation && q.explanation.trim() !== "" ? q.explanation : "此題沒有提供解析。";
+        result.innerHTML = `解析：<br>${explanationText.replace(/\n/g, '<br>')}`;
+        result.style.display = 'block';
+        btn.textContent = '隱藏解析';
+      } else {
+        result.style.display = 'none';
+        btn.textContent = '看解析';
+      }
+    }
+    
     let touchstartX = 0, touchendX = 0;
     function nextQuestion() { if (currentQuestionIndex < currentQuestions.length - 1) { currentQuestionIndex++; showQuestion(); } }
     function previousQuestion() { if (currentQuestionIndex > 0) { currentQuestionIndex--; showQuestion(); } }
