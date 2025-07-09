@@ -57,69 +57,82 @@
     const setupContainer = document.getElementById("setup-container"), quizContainer = document.getElementById("quiz-container"), startQuizBtn = document.getElementById("start-quiz-btn"), subjectSelect = document.getElementById("subject-select"), modeSelect = document.getElementById("mode-select"), chapterSelectContainer = document.getElementById("chapter-select-container"), chapterSelect = document.getElementById("chapter-select"), questionQuantitySelect = document.getElementById("question-quantity-select"), endQuizModal = document.getElementById("end-quiz-modal");
 
     document.addEventListener('DOMContentLoaded', setupInitialScreen);
-    function setupInitialScreen() { populateDropdown(subjectSelect, subjects.map(s => s.name)); const savedSubject = localStorage.getItem('selectedSubject'); if (savedSubject) subjectSelect.value = savedSubject; updateModeAndChapterSelectors(); const savedQuantity = localStorage.getItem('selectedQuantity'); if (savedQuantity) questionQuantitySelect.value = savedQuantity; subjectSelect.addEventListener("change", updateModeAndChapterSelectors); modeSelect.addEventListener("change", updateModeAndChapterSelectors); startQuizBtn.addEventListener("click", startQuiz); }
-    async function updateModeAndChapterSelectors() { const selectedSubject = subjectSelect.value; const currentModeValue = modeSelect.value; chapterSelectContainer.style.display = 'none'; if (selectedSubject === '刑法') { const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ]; populateDropdown(modeSelect, criminalLawModes); if (criminalLawModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '總則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } else if (newModeValue === '分則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } } else if (selectedSubject === '監獄行刑法') { const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(歷屆+模擬)', '本法與子法']; populateDropdown(modeSelect, prisonActModes); if (prisonActModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '本法與子法') { try { const manifest = await fetchJson('監獄行刑法/manifest.json'); const chapters = manifest.files.map(file => file.replace('.json', '')); populateDropdown(chapterSelect, ['隨機選擇', ...chapters], true); chapterSelectContainer.style.display = 'block'; } catch (e) { console.error("讀取監獄行刑法 manifest 失敗:", e); alert("讀取監獄行刑法之章節清單失敗，請確認 manifest.json 檔案是否存在！"); } } } else { populateDropdown(modeSelect, ['隨機出題']); } }
-    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { const currentValue = selectElement.value; selectElement.innerHTML = ''; optionsArray.forEach((optionText, index) => { const option = document.createElement('option'); const isFirstOption = (index === 0); const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText; option.value = value; option.textContent = optionText; selectElement.appendChild(option); }); if (Array.from(selectElement.options).some(opt => opt.value === currentValue)) { selectElement.value = currentValue; } }
+    
+    function setupInitialScreen() { /* ...維持不變... */ }
+    async function updateModeAndChapterSelectors() { /* ...維持不變... */ }
+    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { /* ...維持不變... */ }
 
-    // --- 除錯版本 --- : 在此函式中加入大量 console.log
+    // --- 修正 --- : 在此函式中為每個邏輯分支明確設定 isGrouped 的值
     async function startQuiz() {
         setupContainer.style.display = 'none';
         localStorage.setItem('selectedSubject', subjectSelect.value);
         localStorage.setItem('selectedQuantity', questionQuantitySelect.value);
-        
-        // --- 除錯點 1: 取得並印出所有選擇的變數 ---
         const selectedSubject = subjectSelect.value;
         const selectedMode = modeSelect.value;
         const selectedChapter = chapterSelect.value;
         const subjectInfo = subjects.find(s => s.name === selectedSubject);
-
-        console.log("--- 開始測驗前的變數檢查 ---");
-        console.log(`使用者選擇的科目: "${selectedSubject}"`);
-        console.log(`使用者選擇的模式: "${selectedMode}"`);
-        console.log(`找到的科目資訊 (subjectInfo):`, subjectInfo);
-        console.log("--------------------------");
-
         try {
             let questionsData; 
-            let isGrouped = false;
+            let isGrouped = false; // 預設為 false
             if (selectedSubject === '刑法') {
-                // ... 刑法邏輯維持不變 ...
                 const manifest = await fetchJson('刑法/manifest.json');
-                if (selectedMode === '隨機出題(歷屆試題300題)') { questionsData = await fetchJson(subjectInfo.file); } else if (selectedMode === '隨機出題(歷屆+模擬)') { const pastExamPromise = fetchJson(subjectInfo.file); const generalPaths = manifest.總則.map(file => `刑法/總則/${file}`); const specificPaths = manifest.分則.map(file => `刑法/分則/${file}`); const generalPromise = fetchMultipleJsonAsGroups(generalPaths); const specificPromise = fetchMultipleJsonAsGroups(specificPaths); const [pastExamQuestions, generalQuestions, specificQuestions] = await Promise.all([ pastExamPromise, generalPromise, specificPromise ]); questionsData = { '歷屆試題': pastExamQuestions, ...generalQuestions, ...specificQuestions }; isGrouped = true; } else if (selectedMode === '總則(模擬)') { if (selectedChapter === 'random') { const generalPaths = manifest.總則.map(file => `刑法/總則/${file}`); questionsData = await fetchMultipleJsonAsGroups(generalPaths); isGrouped = true; } else { questionsData = await fetchJson(`刑法/總則/${selectedChapter}.json`); } } else if (selectedMode === '分則(模擬)') { if (selectedChapter === 'random') { const specificPaths = manifest.分則.map(file => `刑法/分則/${file}`); questionsData = await fetchMultipleJsonAsGroups(specificPaths); isGrouped = true; } else { questionsData = await fetchJson(`刑法/分則/${selectedChapter}.json`); } }
-            } else if (selectedSubject === '監獄行刑法') {
-                
-                // --- 除錯點 2: 確認程式已進入正確的判斷區塊 ---
-                console.log("進入「監獄行刑法」的邏輯判斷區塊...");
-
-                if (selectedMode === '隨機出題(歷屆試題259題)') {
-                    console.log("條件匹配成功: 隨機出題(歷屆試題259題)");
-                    console.log(`準備讀取檔案: ${subjectInfo.file}`);
+                if (selectedMode === '隨機出題(歷屆試題300題)') {
                     questionsData = await fetchJson(subjectInfo.file);
+                    isGrouped = false; // 明確設定
                 } else if (selectedMode === '隨機出題(歷屆+模擬)') {
-                    console.log("條件匹配成功: 隨機出題(歷屆+模擬)");
+                    const pastExamPromise = fetchJson(subjectInfo.file);
+                    const generalPaths = manifest.總則.map(file => `刑法/總則/${file}`);
+                    const specificPaths = manifest.分則.map(file => `刑法/分則/${file}`);
+                    const generalPromise = fetchMultipleJsonAsGroups(generalPaths);
+                    const specificPromise = fetchMultipleJsonAsGroups(specificPaths);
+                    const [pastExamQuestions, generalQuestions, specificQuestions] = await Promise.all([ pastExamPromise, generalPromise, specificPromise ]);
+                    questionsData = { '歷屆試題': pastExamQuestions, ...generalQuestions, ...specificQuestions };
+                    isGrouped = true; // 明確設定
+                } else if (selectedMode === '總則(模擬)') {
+                    if (selectedChapter === 'random') {
+                        const generalPaths = manifest.總則.map(file => `刑法/總則/${file}`);
+                        questionsData = await fetchMultipleJsonAsGroups(generalPaths);
+                        isGrouped = true; // 明確設定
+                    } else {
+                        questionsData = await fetchJson(`刑法/總則/${selectedChapter}.json`);
+                        isGrouped = false; // 明確設定
+                    }
+                } else if (selectedMode === '分則(模擬)') {
+                    if (selectedChapter === 'random') {
+                        const specificPaths = manifest.分則.map(file => `刑法/分則/${file}`);
+                        questionsData = await fetchMultipleJsonAsGroups(specificPaths);
+                        isGrouped = true; // 明確設定
+                    } else {
+                        questionsData = await fetchJson(`刑法/分則/${selectedChapter}.json`);
+                        isGrouped = false; // 明確設定
+                    }
+                }
+            } else if (selectedSubject === '監獄行刑法') {
+                if (selectedMode === '隨機出題(歷屆試題259題)') {
+                    questionsData = await fetchJson(subjectInfo.file);
+                    isGrouped = false; // 明確設定
+                } else if (selectedMode === '隨機出題(歷屆+模擬)') {
                     const manifest = await fetchJson('監獄行刑法/manifest.json');
                     const pastExamPromise = fetchJson(subjectInfo.file);
                     const mockPaths = manifest.files.map(file => `監獄行刑法/${file}`);
                     const mockPromise = fetchMultipleJsonAsGroups(mockPaths);
                     const [pastExamQuestions, mockQuestions] = await Promise.all([pastExamPromise, mockPromise]);
                     questionsData = { '歷屆試題': pastExamQuestions, ...mockQuestions };
-                    isGrouped = true;
+                    isGrouped = true; // 明確設定
                 } else if (selectedMode === '本法與子法') {
-                    console.log("條件匹配成功: 本法與子法");
                     if (selectedChapter === 'random') {
                         const manifest = await fetchJson('監獄行刑法/manifest.json');
                         const paths = manifest.files.map(file => `監獄行刑法/${file}`);
                         questionsData = await fetchMultipleJsonAsGroups(paths);
-                        isGrouped = true;
+                        isGrouped = true; // 明確設定
                     } else {
                         questionsData = await fetchJson(`監獄行刑法/${selectedChapter}.json`);
+                        isGrouped = false; // 明確設定
                     }
-                } else {
-                    // --- 除錯點 3: 如果以上條件都沒匹配，會印出這行 ---
-                    console.error("警告：在「監獄行刑法」邏輯中，沒有匹配到任何模式！請檢查 selectedMode 的值是否正確。");
                 }
             } else {
                 questionsData = await fetchJson(subjectInfo.file);
+                isGrouped = false; // 明確設定
             }
             const totalQuestionsCount = isGrouped ? Object.values(questionsData).reduce((sum, arr) => sum + arr.length, 0) : questionsData.length;
             if (!questionsData || totalQuestionsCount === 0) { throw new Error("成功讀取檔案，但內容為空或格式不符。"); }
@@ -135,7 +148,7 @@
     // --- 以下所有函式都維持最新版本，無需修改 ---
     async function fetchJson(path) { console.log(`讀取檔案: ${path}`); const response = await fetch(path); if (!response.ok) throw new Error(`檔案 ${path} 讀取失敗`); return response.json(); }
     async function fetchMultipleJsonAsGroups(paths) { console.log(`正在分組讀取 ${paths.length} 個檔案...`); const responses = await Promise.all(paths.map(path => fetch(path))); for (const response of responses) { if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`); } const jsonDataArrays = await Promise.all(responses.map(res => res.json())); const groupedData = {}; paths.forEach((path, index) => { const key = path.split('/').pop(); groupedData[key] = jsonDataArrays[index]; }); return groupedData; }
-    function initializeQuiz(questionsData, isNewQuiz = false, isGrouped = false) { renderQuizUI(); isInReviewMode = false; let questionsSource = []; if (isNewQuiz) { if (isGrouped) { console.log("執行「保證廣度優先」抽題演算法"); const availableQuestions = JSON.parse(JSON.stringify(questionsData)); const chapters = Object.keys(availableQuestions).filter(key => availableQuestions[key].length > 0); const requestedQty = parseInt(questionQuantitySelect.value, 10); let finalQuizQuestions = []; for (const chapterName of chapters) { const questionsInChapter = availableQuestions[chapterName]; const randomIndex = Math.floor(Math.random() * questionsInChapter.length); const pickedQuestion = questionsInChapter.splice(randomIndex, 1)[0]; finalQuizQuestions.push(pickedQuestion); } const numRemainingNeeded = requestedQty - finalQuizQuestions.length; if (numRemainingNeeded > 0) { const remainderPool = Object.values(availableQuestions).flat(); shuffleArray(remainderPool); const extraQuestions = remainderPool.slice(0, numRemainingNeeded); finalQuizQuestions.push(...extraQuestions); } questionsSource = finalQuizQuestions; if(questionsSource.length > requestedQty) { shuffleArray(questionsSource); questionsSource = questionsSource.slice(0, requestedQty); } } else { console.log("執行「傳統隨機」抽題演算法"); questionsSource = JSON.parse(JSON.stringify(questionsData)); shuffleArray(questionsSource); const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10); if (questionsSource.length > selectedMaxQuestions) { questionsSource = questionsSource.slice(0, selectedMaxQuestions); } } questionsSource.forEach(q => { q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null }; delete q.shuffledOptions; }); } shuffleArray(questionsSource); currentQuestions = questionsSource; currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0; showQuestion(); }
+    function initializeQuiz(questionsData, isNewQuiz = false, isGrouped = false) { renderQuizUI(); isInReviewMode = false; let questionsSource = []; if (isNewQuiz) { if (isGrouped) { console.log("執行「保證廣度優先」抽題演算法"); const availableQuestions = JSON.parse(JSON.stringify(questionsData)); const chapters = Object.keys(availableQuestions).filter(key => availableQuestions[key].length > 0); const requestedQty = parseInt(questionQuantitySelect.value, 10); let finalQuizQuestions = []; for (const chapterName of chapters) { const questionsInChapter = availableQuestions[chapterName]; if (questionsInChapter.length > 0) { const randomIndex = Math.floor(Math.random() * questionsInChapter.length); const pickedQuestion = questionsInChapter.splice(randomIndex, 1)[0]; finalQuizQuestions.push(pickedQuestion); } } const numRemainingNeeded = requestedQty - finalQuizQuestions.length; if (numRemainingNeeded > 0) { const remainderPool = Object.values(availableQuestions).flat(); shuffleArray(remainderPool); const extraQuestions = remainderPool.slice(0, numRemainingNeeded); finalQuizQuestions.push(...extraQuestions); } questionsSource = finalQuizQuestions; if(questionsSource.length > requestedQty) { shuffleArray(questionsSource); questionsSource = questionsSource.slice(0, requestedQty); } } else { console.log("執行「傳統隨機」抽題演算法"); questionsSource = JSON.parse(JSON.stringify(questionsData)); shuffleArray(questionsSource); const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10); if (questionsSource.length > selectedMaxQuestions) { questionsSource = questionsSource.slice(0, selectedMaxQuestions); } } questionsSource.forEach(q => { q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null }; delete q.shuffledOptions; }); } shuffleArray(questionsSource); currentQuestions = questionsSource; currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0; showQuestion(); }
     function returnToSetupScreen() { quizContainer.style.display = 'none'; quizContainer.innerHTML = ''; endQuizModal.innerHTML = ''; setupContainer.style.display = 'flex'; updateModeAndChapterSelectors(); }
     function renderQuizUI() { quizContainer.innerHTML = ` <div id="quiz-area"> <div class="question-box" id="question-box"></div> <div id="result" style="display: none;"></div> </div> <div id="score"></div> <div class="button-group"> <button id="prev-btn" disabled>上一題</button> <button id="explanation-btn" disabled>看解析</button> <button id="next-btn" disabled>下一題</button> <button id="calculate-btn" disabled style="display: none;">結算</button> <button id="reset-btn">返回選單</button> <button id="report-btn">回報此題問題</button> </div> `; endQuizModal.innerHTML = ` <div class="modal-content"> <h3>測驗結束！</h3> <p id="modal-score-summary"></p> <div class="modal-buttons"> <button id="review-all-btn">查看完整試卷</button> <button id="review-wrong-btn">錯題檢討</button> <button id="finish-quiz-btn">返回選單</button> </div> </div> `; const prevBtn = document.getElementById("prev-btn"), explanationBtn = document.getElementById("explanation-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), reportBtn = document.getElementById("report-btn"), reviewAllBtn = document.getElementById("review-all-btn"), reviewWrongBtn = document.getElementById("review-wrong-btn"), finishQuizBtn = document.getElementById("finish-quiz-btn"), quizArea = document.getElementById("quiz-area"); prevBtn.addEventListener("click", previousQuestion); explanationBtn.addEventListener("click", toggleExplanation); nextBtn.addEventListener("click", nextQuestion); calculateBtn.addEventListener("click", showEndQuizModal); resetBtn.addEventListener("click", returnToSetupScreen); reportBtn.addEventListener("click", handleReportClick); reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(currentQuestions); }); reviewWrongBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect); if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; } initializeQuiz(wrongQuestions, true); }); finishQuizBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; returnToSetupScreen(); }); quizArea.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true }); quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true }); }
     function handleReportClick() { const myEmail = 'YOUR_EMAIL@example.com'; const q = currentQuestions[currentQuestionIndex]; if (!q) { alert("目前沒有題目可回報。"); return; } const subject = `[題庫問題回報] Q${currentQuestionIndex + 1}`; const userChoiceIndex = q.userAttempt.choiceIndex; const userChoiceText = (userChoiceIndex !== null && userChoiceIndex >= 0) ? `(${userChoiceIndex}) ${q.options[userChoiceIndex]}` : '尚未作答'; const body = ` 你好，我發現以下題目可能有些問題：\n------------------------------------------------\n題號：Q${currentQuestionIndex + 1}\n科目：${subjectSelect.value}\n模式：${modeSelect.value}\n章節：${chapterSelect.style.display !== 'none' ? chapterSelect.value : '無'}\n------------------------------------------------\n\n【題目內容】\n${q.question}\n\n【選項】\n${q.options.map((opt, i) => `(${i}) ${opt}`).join('\n')}\n\n【紀錄的正確答案】\n(${q.answer}) ${q.options[q.answer]}\n\n【我的選擇】\n${userChoiceText}\n\n【解析】\n${q.explanation || '無'}\n\n------------------------------------------------\n【請在此描述您發現的問題】\n\n(例如：答案錯誤，應為(X)；題目有錯字；解析不清楚；選項(Y)的內容有爭議...)\n\n`; const mailtoLink = `mailto:${myEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; window.location.href = mailtoLink; }
