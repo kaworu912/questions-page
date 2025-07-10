@@ -70,7 +70,7 @@
         startQuizBtn.addEventListener("click", startQuiz);
     }
     
-    // --- 修改 --- : 加入對 "監獄學" 的邏輯判斷
+    // --- 修改 --- : 移除"監獄行刑法"的一個模式
     async function updateModeAndChapterSelectors() {
         const selectedSubject = subjectSelect.value;
         const currentModeValue = modeSelect.value;
@@ -89,7 +89,7 @@
                 chapterSelectContainer.style.display = 'block';
             }
         } else if (selectedSubject === '監獄行刑法') {
-            const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(監獄喵927題)', '隨機出題(歷屆+模擬)', '本法與子法'];
+            const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(歷屆+模擬)', '本法與子法']; // 移除了"監獄喵"選項
             populateDropdown(modeSelect, prisonActModes);
             if (prisonActModes.includes(currentModeValue)) modeSelect.value = currentModeValue;
             const newModeValue = modeSelect.value;
@@ -129,7 +129,7 @@
         }
     }
 
-    // --- 修改 --- : 加入 "監獄學" 的檔案讀取邏輯
+    // --- 修改 --- : 移除"監獄行刑法"的一個讀取邏輯
     async function startQuiz() {
         setupContainer.style.display = 'none';
         localStorage.setItem('selectedSubject', subjectSelect.value);
@@ -171,8 +171,6 @@
             } else if (selectedSubject === '監獄行刑法') {
                 if (selectedMode === '隨機出題(歷屆試題259題)') {
                     questionsData = await fetchJson(subjectInfo.file); isGrouped = false;
-                } else if (selectedMode === '隨機出題(監獄喵927題)') {
-                    questionsData = await fetchJson('監獄行刑法/927.json'); isGrouped = false;
                 } else if (selectedMode === '隨機出題(歷屆+模擬)') {
                     const manifest = await fetchJson('監獄行刑法/manifest.json');
                     const pastExamPromise = fetchJson(subjectInfo.file);
@@ -275,9 +273,37 @@
         quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true });
     }
     
-    // --- 以下所有函式都維持不變 ---
+    // --- 修改 --- : 移除選項的 (A)(B)(C)(D) 前綴
+    function showQuestion() {
+      const questionBox = document.getElementById("question-box"), result = document.getElementById("result");
+      result.style.display = 'none';
+      document.getElementById("explanation-btn").textContent = "看解析";
+      if(!isInReviewMode) updateScore();
+      if (!currentQuestions || currentQuestions.length === 0) { questionBox.innerHTML = "<p>此科目沒有題目。</p>"; return; }
+      questionBox.innerHTML = "";
+      const q = currentQuestions[currentQuestionIndex];
+      const questionEl = document.createElement("div");
+      questionEl.innerHTML = `<strong>Q${currentQuestionIndex + 1}：</strong>${q.question}`;
+      questionBox.appendChild(questionEl);
+      let optionsContainer = document.createElement("div");
+      optionsContainer.id = "options-container";
+      questionBox.appendChild(optionsContainer);
+      if (!q.shuffledOptions) { q.shuffledOptions = [...q.options]; shuffleArray(q.shuffledOptions); }
+      
+      q.shuffledOptions.forEach((optionText, index) => {
+        const optionDiv = document.createElement("div");
+        optionDiv.className = "option";
+        optionDiv.textContent = optionText; // 直接顯示選項文字，不加前綴
+        optionDiv.dataset.originalText = optionText; 
+        optionsContainer.appendChild(optionDiv);
+        optionDiv.addEventListener("click", () => handleOptionClick(optionDiv));
+      });
+      updateButtonStates();
+      if (q.userAttempt.answered) { showAnswerResult(); } 
+    }
+    
+    // 以下所有函式都維持不變
     function returnToSetupScreen() { quizContainer.style.display = 'none'; quizContainer.innerHTML = ''; endQuizModal.innerHTML = ''; setupContainer.style.display = 'flex'; updateModeAndChapterSelectors(); }
-    function showQuestion() { const questionBox = document.getElementById("question-box"), result = document.getElementById("result"); result.style.display = 'none'; document.getElementById("explanation-btn").textContent = "看解析"; if(!isInReviewMode) updateScore(); if (!currentQuestions || currentQuestions.length === 0) { questionBox.innerHTML = "<p>此科目沒有題目。</p>"; return; } questionBox.innerHTML = ""; const q = currentQuestions[currentQuestionIndex]; const questionEl = document.createElement("div"); questionEl.innerHTML = `<strong>Q${currentQuestionIndex + 1}：</strong>${q.question}`; questionBox.appendChild(questionEl); let optionsContainer = document.createElement("div"); optionsContainer.id = "options-container"; questionBox.appendChild(optionsContainer); if (!q.shuffledOptions) { q.shuffledOptions = [...q.options]; shuffleArray(q.shuffledOptions); } const prefixes = ['(A)', '(B)', '(C)', '(D)']; q.shuffledOptions.forEach((optionText, index) => { const optionDiv = document.createElement("div"); optionDiv.className = "option"; optionDiv.textContent = `${prefixes[index]} ${optionText}`; optionDiv.dataset.originalText = optionText; optionsContainer.appendChild(optionDiv); optionDiv.addEventListener("click", () => handleOptionClick(optionDiv)); }); updateButtonStates(); if (q.userAttempt.answered) { showAnswerResult(); } }
     function handleOptionClick(selectedDiv) { if (isInReviewMode) return; const q = currentQuestions[currentQuestionIndex]; const currentTime = new Date().getTime(); const timeSinceLastTap = currentTime - lastTapTime; if (timeSinceLastTap < 300 && timeSinceLastTap > 0 && lastTapTarget === selectedDiv && q.userAttempt.answered && q.userAttempt.wasCorrect) { lastTapTime = 0; lastTapTarget = null; if (currentQuestionIndex < currentQuestions.length - 1) { nextQuestion(); } else { showEndQuizModal(); } return; } lastTapTime = currentTime; lastTapTarget = selectedDiv; if (q.userAttempt.answered) { return; } const originalOptionText = selectedDiv.dataset.originalText; q.userAttempt.answered = true; const chosenIndex = q.options.indexOf(originalOptionText); q.userAttempt.choiceIndex = chosenIndex; q.userAttempt.wasCorrect = (chosenIndex === q.answer); if (q.userAttempt.wasCorrect) { correctCount++; scorePoints += (100 / currentQuestions.length); } else { wrongCount++; } completedCount++; showAnswerResult(); updateScore(); updateButtonStates(); }
     function showAnswerResult() { const q = currentQuestions[currentQuestionIndex]; const optionsContainer = document.getElementById("options-container"); if (!optionsContainer) return; Array.from(optionsContainer.children).forEach(el => { const originalText = el.dataset.originalText; const originalIndexOfEl = q.options.indexOf(originalText); if (originalIndexOfEl === q.answer) { el.classList.add("correct"); } if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) { el.classList.add("incorrect"); } }); }
     function updateButtonStates() { const prevBtn = document.getElementById("prev-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), explanationBtn = document.getElementById("explanation-btn"); prevBtn.disabled = currentQuestionIndex === 0; explanationBtn.disabled = false; const q = currentQuestions[currentQuestionIndex]; if (isInReviewMode) { if (resetBtn.textContent !== "結束檢討") resetBtn.textContent = "結束檢討"; nextBtn.disabled = currentQuestionIndex === currentQuestions.length - 1; calculateBtn.style.display = 'none'; } else { if (resetBtn.textContent !== "返回選單") resetBtn.textContent = "返回選單"; nextBtn.disabled = !q.userAttempt.answered || currentQuestionIndex === currentQuestions.length - 1; if (completedCount === currentQuestions.length && currentQuestions.length > 0) { nextBtn.style.display = "none"; calculateBtn.style.display = "grid"; calculateBtn.disabled = false; } else { nextBtn.style.display = "grid"; calculateBtn.style.display = 'none'; } } }
