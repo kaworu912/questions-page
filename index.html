@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>多科目答題系統</title>
   <style>
-    /* CSS 樣式部分維持不變，除了移除 report-btn */
+    /* CSS 樣式部分維持不變 */
     body { font-family: sans-serif; font-size: 14px; padding: 10px; line-height: 1.6; max-width: 600px; margin: auto; }
     #setup-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 20px; }
     .setup-item { width: 100%; max-width: 350px; }
@@ -24,7 +24,6 @@
     #score { margin-top: 5px; font-size: 14px; }
     .button-group { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
     #reset-btn { background-color: #dc3545; color: white; border-color: #dc3545; }
-    /* --- 刪除 --- : 已移除 #report-btn 的樣式 */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
     .modal-content { background-color: white; padding: 20px 30px; border-radius: 8px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
     .modal-content h3 { margin-top: 0; }
@@ -71,11 +70,12 @@
         startQuizBtn.addEventListener("click", startQuiz);
     }
     
-    // --- 修改 --- : 在 "監獄行刑法" 的選項中加入新模式
+    // --- 修改 --- : 加入對 "監獄學" 的邏輯判斷
     async function updateModeAndChapterSelectors() {
         const selectedSubject = subjectSelect.value;
         const currentModeValue = modeSelect.value;
         chapterSelectContainer.style.display = 'none';
+
         if (selectedSubject === '刑法') {
             const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ];
             populateDropdown(modeSelect, criminalLawModes);
@@ -104,6 +104,10 @@
                     alert("讀取監獄行刑法之章節清單失敗，請確認 manifest.json 檔案是否存在！");
                 }
             }
+        } else if (selectedSubject === '監獄學') {
+            const prisonScienceModes = ['歷屆試題120題', '監獄喵927題'];
+            populateDropdown(modeSelect, prisonScienceModes);
+            if (prisonScienceModes.includes(currentModeValue)) modeSelect.value = currentModeValue;
         } else {
             populateDropdown(modeSelect, ['隨機出題']);
         }
@@ -125,7 +129,7 @@
         }
     }
 
-    // --- 修改 --- : 加入新模式的檔案讀取邏輯
+    // --- 修改 --- : 加入 "監獄學" 的檔案讀取邏輯
     async function startQuiz() {
         setupContainer.style.display = 'none';
         localStorage.setItem('selectedSubject', subjectSelect.value);
@@ -184,6 +188,12 @@
                     } else {
                         questionsData = await fetchJson(`監獄行刑法/${selectedChapter}.json`); isGrouped = false;
                     }
+                }
+            } else if (selectedSubject === '監獄學') {
+                if (selectedMode === '歷屆試題120題') {
+                    questionsData = await fetchJson('監獄學/監獄學(歷屆試題).json'); isGrouped = false;
+                } else if (selectedMode === '監獄喵927題') {
+                    questionsData = await fetchJson('監獄學/927.json'); isGrouped = false;
                 }
             } else {
                 questionsData = await fetchJson(subjectInfo.file); isGrouped = false;
@@ -253,7 +263,6 @@
         showQuestion();
     }
 
-    // --- 修改 --- : 移除回報按鈕相關的 HTML 和事件綁定
     function renderQuizUI() {
         quizContainer.innerHTML = ` <div id="quiz-area"> <div class="question-box" id="question-box"></div> <div id="result" style="display: none;"></div> </div> <div id="score"></div> <div class="button-group"> <button id="prev-btn" disabled>上一題</button> <button id="explanation-btn" disabled>看解析</button> <button id="next-btn" disabled>下一題</button> <button id="calculate-btn" disabled style="display: none;">結算</button> <button id="reset-btn">返回選單</button> </div> `;
         endQuizModal.innerHTML = ` <div class="modal-content"> <h3>測驗結束！</h3> <p id="modal-score-summary"></p> <div class="modal-buttons"> <button id="review-all-btn">查看完整試卷</button> <button id="review-wrong-btn">錯題檢討</button> <button id="finish-quiz-btn">返回選單</button> </div> </div> `;
@@ -266,9 +275,7 @@
         quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true });
     }
     
-    // --- 刪除 --- : 整個 handleReportClick 函式已移除
-    
-    // 以下所有函式都維持不變
+    // --- 以下所有函式都維持不變 ---
     function returnToSetupScreen() { quizContainer.style.display = 'none'; quizContainer.innerHTML = ''; endQuizModal.innerHTML = ''; setupContainer.style.display = 'flex'; updateModeAndChapterSelectors(); }
     function showQuestion() { const questionBox = document.getElementById("question-box"), result = document.getElementById("result"); result.style.display = 'none'; document.getElementById("explanation-btn").textContent = "看解析"; if(!isInReviewMode) updateScore(); if (!currentQuestions || currentQuestions.length === 0) { questionBox.innerHTML = "<p>此科目沒有題目。</p>"; return; } questionBox.innerHTML = ""; const q = currentQuestions[currentQuestionIndex]; const questionEl = document.createElement("div"); questionEl.innerHTML = `<strong>Q${currentQuestionIndex + 1}：</strong>${q.question}`; questionBox.appendChild(questionEl); let optionsContainer = document.createElement("div"); optionsContainer.id = "options-container"; questionBox.appendChild(optionsContainer); if (!q.shuffledOptions) { q.shuffledOptions = [...q.options]; shuffleArray(q.shuffledOptions); } const prefixes = ['(A)', '(B)', '(C)', '(D)']; q.shuffledOptions.forEach((optionText, index) => { const optionDiv = document.createElement("div"); optionDiv.className = "option"; optionDiv.textContent = `${prefixes[index]} ${optionText}`; optionDiv.dataset.originalText = optionText; optionsContainer.appendChild(optionDiv); optionDiv.addEventListener("click", () => handleOptionClick(optionDiv)); }); updateButtonStates(); if (q.userAttempt.answered) { showAnswerResult(); } }
     function handleOptionClick(selectedDiv) { if (isInReviewMode) return; const q = currentQuestions[currentQuestionIndex]; const currentTime = new Date().getTime(); const timeSinceLastTap = currentTime - lastTapTime; if (timeSinceLastTap < 300 && timeSinceLastTap > 0 && lastTapTarget === selectedDiv && q.userAttempt.answered && q.userAttempt.wasCorrect) { lastTapTime = 0; lastTapTarget = null; if (currentQuestionIndex < currentQuestions.length - 1) { nextQuestion(); } else { showEndQuizModal(); } return; } lastTapTime = currentTime; lastTapTarget = selectedDiv; if (q.userAttempt.answered) { return; } const originalOptionText = selectedDiv.dataset.originalText; q.userAttempt.answered = true; const chosenIndex = q.options.indexOf(originalOptionText); q.userAttempt.choiceIndex = chosenIndex; q.userAttempt.wasCorrect = (chosenIndex === q.answer); if (q.userAttempt.wasCorrect) { correctCount++; scorePoints += (100 / currentQuestions.length); } else { wrongCount++; } completedCount++; showAnswerResult(); updateScore(); updateButtonStates(); }
@@ -278,7 +285,7 @@
     function showEndQuizModal() { document.getElementById("modal-score-summary").textContent = `最終得分：${scorePoints.toFixed(2)}分 (答對 ${correctCount} 題 / 答錯 ${wrongCount} 題)`; const endModal = document.getElementById('end-quiz-modal'); endModal.style.display = 'flex'; }
     function toggleExplanation() { const result = document.getElementById("result"), q = currentQuestions[currentQuestionIndex], btn = document.getElementById("explanation-btn"); if (result.style.display === 'none') { const explanationText = q.explanation && q.explanation.trim() !== "" ? q.explanation : "此題沒有提供解析。"; result.innerHTML = `解析：<br>${explanationText.replace(/\n/g, '<br>')}`; result.style.display = 'block'; btn.textContent = '隱藏解析'; } else { result.style.display = 'none'; btn.textContent = '看解析'; } }
     let touchstartX = 0, touchendX = 0;
-    function nextQuestion() { if (currentQuestionIndex < currentQuestions.length - 1) { currentQuestionIndex++; showQuestion(); } else { showEndQuizModal(); } } // --- 修正: 最後一題雙擊後也應結算
+    function nextQuestion() { if (currentQuestionIndex < currentQuestions.length - 1) { currentQuestionIndex++; showQuestion(); } else { showEndQuizModal(); } }
     function previousQuestion() { if (currentQuestionIndex > 0) { currentQuestionIndex--; showQuestion(); } }
     function handleGesture() { const nextBtn = document.getElementById("next-btn"), prevBtn = document.getElementById("prev-btn"), SWIPE_THRESHOLD = 75; if (touchendX < touchstartX - SWIPE_THRESHOLD) { if (nextBtn && !nextBtn.disabled) nextQuestion(); } if (touchendX > touchstartX + SWIPE_THRESHOLD) { if (prevBtn && !prevBtn.disabled) previousQuestion(); } }
     function updateScore() { const scoreEl = document.getElementById("score"); if(!scoreEl) return; const totalScore = parseFloat(scorePoints.toFixed(2)); const totalQuestions = currentQuestions.length; scoreEl.textContent = `✔️ 答對：${correctCount} 題　❌ 答錯：${wrongCount} 題　總分：${totalScore} 分 (已完成 ${completedCount} / ${totalQuestions} 題)`; }
