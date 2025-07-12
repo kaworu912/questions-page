@@ -15,7 +15,6 @@
     label { font-size: 14px; }
     select, button { width: 100%; padding: 10px; margin: 0; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; box-sizing: border-box; font-size: 16px; }
     #start-quiz-btn { font-size: 18px; }
-    /* --- 新增 --- : PDF 閱讀器的高度調整 */
     #pdf-viewer { width: 100%; height: calc(100vh - 80px); border: 1px solid #ccc; }
     #quiz-area { touch-action: pan-y; }
     .question-box { margin-top: 20px; font-size: 18px; min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
@@ -72,11 +71,11 @@
         startQuizBtn.addEventListener("click", startQuiz);
     }
     
-    // --- 修改 --- : 加入 "犯罪學" 的 "重點整理" 邏輯
+    // --- 修改 --- : 在 "犯罪學" 的 "重點整理" 模式中新增選項
     async function updateModeAndChapterSelectors() {
         const selectedSubject = subjectSelect.value;
         const currentModeValue = modeSelect.value;
-        chapterSelectContainer.style.display = 'none'; // 預設隱藏章節選單
+        chapterSelectContainer.style.display = 'none';
 
         if (selectedSubject === '刑法') {
             const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ];
@@ -111,9 +110,10 @@
             const criminologyModes = ['歷屆試題120題', '參考書1304題', '重點整理'];
             populateDropdown(modeSelect, criminologyModes);
             if (criminologyModes.includes(currentModeValue)) modeSelect.value = currentModeValue;
-            // 如果模式是重點整理，顯示章節選項
             if (modeSelect.value === '重點整理') {
-                populateDropdown(chapterSelect, ['犯罪學理論']);
+                // 在此處加入新的章節選項
+                const summaryTopics = ['犯罪學心智圖', '理論與學者配對'];
+                populateDropdown(chapterSelect, summaryTopics);
                 chapterSelectContainer.style.display = 'block';
             }
         } else {
@@ -137,25 +137,25 @@
         }
     }
 
-    // --- 修改 --- : 加入顯示 PDF 的判斷邏輯
     async function startQuiz() {
         const selectedSubject = subjectSelect.value;
         const selectedMode = modeSelect.value;
         const selectedChapter = chapterSelect.value;
-        const subjectInfo = subjects.find(s => s.name === selectedSubject);
-
-        // --- 新增 --- : 檢查是否為顯示 PDF 的特殊情況
+        
         if (selectedSubject === '犯罪學' && selectedMode === '重點整理') {
-            if (selectedChapter === '犯罪學理論') {
+            if (selectedChapter === '犯罪學心智圖') {
                 showPdfViewer('犯罪學/各學派.pdf');
-                return; // 結束函式，不執行後續的測驗邏輯
+                return;
+            } else if (selectedChapter === '理論與學者配對') {
+                showPdfViewer('犯罪學/理論配對.pdf');
+                return;
             }
         }
 
-        // --- 以下為原有的測驗邏輯 ---
         setupContainer.style.display = 'none';
-        localStorage.setItem('selectedSubject', subjectSelect.value);
+        localStorage.setItem('selectedSubject', selectedSubject);
         localStorage.setItem('selectedQuantity', questionQuantitySelect.value);
+        const subjectInfo = subjects.find(s => s.name === selectedSubject);
         try {
             let questionsData; 
             let isGrouped = false;
@@ -189,20 +189,8 @@
         }
     }
     
-    // --- 新增 --- : 專門用來顯示 PDF 的函式
-    function showPdfViewer(pdfPath) {
-        setupContainer.style.display = 'none';
-        quizContainer.innerHTML = `
-            <div class="button-group">
-                <button class="pdf-return-btn">返回選單</button>
-            </div>
-            <iframe id="pdf-viewer" src="${pdfPath}"></iframe>
-        `;
-        quizContainer.querySelector('.pdf-return-btn').addEventListener('click', returnToSetupScreen);
-        quizContainer.style.display = 'block';
-    }
-    
-    // --- 以下所有函式都維持不變 ---
+    // --- 以下所有函式都維持最新版本，無需修改 ---
+    function showPdfViewer(pdfPath) { setupContainer.style.display = 'none'; quizContainer.innerHTML = ` <div class="button-group"> <button class="pdf-return-btn">返回選單</button> </div> <iframe id="pdf-viewer" src="${pdfPath}"></iframe> `; quizContainer.querySelector('.pdf-return-btn').addEventListener('click', returnToSetupScreen); quizContainer.style.display = 'block'; }
     async function fetchJson(path) { console.log(`讀取檔案: ${path}`); const response = await fetch(path); if (!response.ok) throw new Error(`檔案 ${path} 讀取失敗`); return response.json(); }
     async function fetchMultipleJsonAsGroups(paths) { console.log(`正在分組讀取 ${paths.length} 個檔案...`); const responses = await Promise.all(paths.map(path => fetch(path))); for (const response of responses) { if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`); } const jsonDataArrays = await Promise.all(responses.map(res => res.json())); const groupedData = {}; paths.forEach((path, index) => { const key = path.split('/').pop(); groupedData[key] = jsonDataArrays[index]; }); return groupedData; }
     function initializeQuiz(questionsData, isNewQuiz = false, isGrouped = false) { renderQuizUI(); isInReviewMode = false; let questionsSource = []; if (isNewQuiz) { if (isGrouped) { console.log("執行「保證廣度優先」抽題演算法"); const availableQuestions = JSON.parse(JSON.stringify(questionsData)); const chapters = Object.keys(availableQuestions).filter(key => availableQuestions[key].length > 0); const requestedQty = parseInt(questionQuantitySelect.value, 10); let finalQuizQuestions = []; for (const chapterName of chapters) { const questionsInChapter = availableQuestions[chapterName]; if (questionsInChapter.length > 0) { const randomIndex = Math.floor(Math.random() * questionsInChapter.length); const pickedQuestion = questionsInChapter.splice(randomIndex, 1)[0]; finalQuizQuestions.push(pickedQuestion); } } const numRemainingNeeded = requestedQty - finalQuizQuestions.length; if (numRemainingNeeded > 0) { const remainderPool = Object.values(availableQuestions).flat(); shuffleArray(remainderPool); const extraQuestions = remainderPool.slice(0, numRemainingNeeded); finalQuizQuestions.push(...extraQuestions); } questionsSource = finalQuizQuestions; if(questionsSource.length > requestedQty) { shuffleArray(questionsSource); questionsSource = questionsSource.slice(0, requestedQty); } } else { console.log("執行「傳統隨機」抽題演算法"); questionsSource = JSON.parse(JSON.stringify(questionsData)); shuffleArray(questionsSource); const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10); if (questionsSource.length > selectedMaxQuestions) { questionsSource = questionsSource.slice(0, selectedMaxQuestions); } } questionsSource.forEach(q => { q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null }; delete q.shuffledOptions; }); } shuffleArray(questionsSource); currentQuestions = questionsSource; currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0; showQuestion(); }
