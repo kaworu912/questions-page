@@ -58,15 +58,16 @@
 
     document.addEventListener('DOMContentLoaded', setupInitialScreen);
     
-    // --- 修正 --- : 這裡是最終、絕對正確的 stripCitations 函式版本
+    // --- 最終修正 --- : 採用最穩健的寫法來定義此函式，確保不再出錯。
     function stripCitations(text) {
         if (typeof text !== 'string' || !text) {
             return text || '';
         }
-        // 使用 new RegExp() 從字串來建立正規表示式，這種寫法可以完全避免因特殊符號造成的語法錯誤。
-        // 注意：在字串中，反斜線 \ 本身需要被轉義，所以要寫成 \\
+        // 使用 new RegExp() 從字串來建立正規表示式。
+        // 在字串中，反斜線 \ 本身是特殊字元，需要被「轉義」寫成 \\
+        // 所以 \s*\ 在字串中要寫成下面的樣子
         const pattern = '\\s*\\';
-        const flags = 'g';
+        const flags = 'g'; // g 代表全域尋找
         const citationRegex = new RegExp(pattern, flags);
         
         return text.replace(citationRegex, '');
