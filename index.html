@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>多科目答題系統</title>
   <style>
-    /* CSS 樣式部分維持不變 */
+    /* CSS 樣式部分 */
     body { font-family: sans-serif; font-size: 14px; padding: 10px; line-height: 1.6; max-width: 600px; margin: auto; }
     #setup-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 20px; }
     .setup-item { width: 100%; max-width: 350px; }
@@ -15,10 +15,6 @@
     label { font-size: 14px; }
     select, button { width: 100%; padding: 10px; margin: 0; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; box-sizing: border-box; font-size: 16px; }
     #start-quiz-btn { font-size: 18px; }
-    #pdf-canvas-container { text-align: center; overflow: auto; width: 100%; height: calc(100vh - 150px); background-color: #e9e9e9; }
-    #pdf-canvas { border: 1px solid #ccc; max-width: 100%; }
-    .pdf-viewer-nav { display: flex; justify-content: space-between; align-items: center; padding: 8px; background-color: #f1f1f1; flex-wrap: wrap; margin-bottom: 10px; }
-    .pdf-viewer-nav button, .pdf-return-btn { width: auto; }
     #quiz-area { touch-action: pan-y; }
     .question-box { margin-top: 20px; font-size: 18px; min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
     .option { display: block; margin: 8px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9; cursor: pointer; font-size: 18px; user-select: none; width: 100%; box-sizing: border-box; }
@@ -27,15 +23,28 @@
     #result { margin-top: 15px; padding: 10px; border: 1px solid #eee; border-radius: 5px; background-color: #fafafa; font-size: 18px; line-height: 1.7; display: none; }
     #score { margin-top: 5px; font-size: 14px; }
     .button-group { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
-    #reset-btn, .pdf-return-btn { background-color: #dc3545; color: white; border-color: #dc3545; }
+    .return-btn { background-color: #dc3545; color: white; border-color: #dc3545; margin-bottom: 10px; }
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
     .modal-content { background-color: white; padding: 20px 30px; border-radius: 8px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
     .modal-content h3 { margin-top: 0; }
     .modal-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
     .modal-buttons button { padding: 10px 20px; font-size: 16px; }
+    /* --- 新增 --- : DOCX 內容顯示區塊的樣式 */
+    #docx-content {
+        border: 1px solid #ccc;
+        padding: 15px;
+        margin-top: 10px;
+        background-color: white;
+        height: calc(100vh - 150px);
+        overflow-y: auto;
+    }
+    #docx-content table { border-collapse: collapse; width: 100%; }
+    #docx-content th, #docx-content td { border: 1px solid #ddd; padding: 8px; }
+    #docx-content th { background-color: #f2f2f2; }
+
   </style>
 
-  <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 
 </head>
 <body>
@@ -52,9 +61,7 @@
   <div id="end-quiz-modal" class="modal-overlay"></div>
 
   <script>
-    if (window.pdfjsLib) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://mozilla.github.io/pdf.js/build/pdf.worker.js`;
-    }
+    // --- 已移除所有 PDF 相關變數和設定 ---
     const subjects = [ { name: "刑法", file: "刑法.json" }, { name: "監獄行刑法", file: "監獄行刑法(歷屆試題).json" }, { name: "法學緒論", file: "法學緒論.json" }, { name: "犯罪學", file: "犯罪學.json" }, { name: "監獄學", file: "監獄學.json" } ];
     const generalProvisionsChapters = [ "第一章 法例", "第二章 刑事責任", "第三章 未遂犯", "第四章 正犯與共犯", "第五章 刑", "第五章之一 沒收", "第五章之二 易刑", "第六章 累犯", "第七章 數罪併罰", "第八章 刑之酌科及加減", "第九章 緩刑", "第十章 假釋", "第十一章 時效", "第十二章 保安處分" ];
     const specificProvisionsChapters = [ "第一章 內亂罪", "第二章 外患罪", "第三章 妨害國交罪", "第四章 瀆職罪", "第五章 妨害公務罪", "第五章之一 藐視國會罪", "第六章 妨害投票罪", "第七章 妨害秩序罪", "第八章 脫逃罪", "第九章 藏匿人犯及湮滅證據罪", "第十章 偽證及誣告罪", "第十章之一 妨害司法公正罪", "第十一章 公共危險罪", "第十二章 偽造貨幣罪", "第十三章 偽造有價證券罪", "第十四章 偽造度量衡罪", "第十五章 偽造文書印文罪", "第十六章 妨害性自主罪", "第十六章之一 妨害風化罪", "第十七章 妨害婚姻及家庭罪", "第十八章 褻瀆祀典及侵害墳墓屍體罪", "第十九章 妨害農工商罪", "第二十章 鴉片罪", "第二十一章 賭博罪", "第二十二章 殺人罪", "第二十三章 傷害罪", "第二十四章 墮胎罪", "第二十五章 遺棄罪", "第二十六章 妨害自由罪", "第二十七章 妨害名譽及信用罪", "第二十八章 妨害秘密罪", "第二十八章之一 妨害性隱私及不實性影像罪", "第二十九章 竊盜罪", "第三十章 搶奪強盜及海盜罪", "第三十一章 侵占罪", "第三十二章 詐欺背信及重利罪", "第三十三章 恐嚇及擄人勒贖罪", "第三十四章 贓物罪", "第三十五章 毀棄損壞罪", "第三十六章 妨害電腦使用罪" ];
@@ -63,48 +70,25 @@
     let currentQuestionIndex = 0, correctCount = 0, wrongCount = 0, scorePoints = 0, completedCount = 0;
     let isInReviewMode = false;
     let lastTapTime = 0; let lastTapTarget = null;
-    let pdfDoc = null, pageNum = 1, pageIsRendering = false, pageNumIsPending = null;
     
     const setupContainer = document.getElementById("setup-container"), quizContainer = document.getElementById("quiz-container"), startQuizBtn = document.getElementById("start-quiz-btn"), subjectSelect = document.getElementById("subject-select"), modeSelect = document.getElementById("mode-select"), chapterSelectContainer = document.getElementById("chapter-select-container"), chapterSelect = document.getElementById("chapter-select"), questionQuantitySelect = document.getElementById("question-quantity-select"), endQuizModal = document.getElementById("end-quiz-modal");
 
     document.addEventListener('DOMContentLoaded', setupInitialScreen);
     
-    function setupInitialScreen() {
-        populateDropdown(subjectSelect, subjects.map(s => s.name));
-        const savedSubject = localStorage.getItem('selectedSubject');
-        if (savedSubject) subjectSelect.value = savedSubject;
-        updateModeAndChapterSelectors();
-        const savedQuantity = localStorage.getItem('selectedQuantity');
-        if (savedQuantity) questionQuantitySelect.value = savedQuantity;
-        
-        subjectSelect.addEventListener("change", updateModeAndChapterSelectors);
-        modeSelect.addEventListener("change", updateModeAndChapterSelectors);
-        startQuizBtn.addEventListener("click", startQuiz);
-    }
-    
-    async function updateModeAndChapterSelectors() {
-        const selectedSubject = subjectSelect.value;
-        const currentModeValue = modeSelect.value;
-        chapterSelectContainer.style.display = 'none';
-        if (selectedSubject === '刑法') { const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ]; populateDropdown(modeSelect, criminalLawModes); if (criminalLawModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '總則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } else if (newModeValue === '分則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } }
-        else if (selectedSubject === '監獄行刑法') { const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(歷屆+模擬)', '本法與子法']; populateDropdown(modeSelect, prisonActModes); if (prisonActModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '本法與子法') { try { const manifest = await fetchJson('監獄行刑法/manifest.json'); const chapters = manifest.files.map(file => file.replace('.json', '')); populateDropdown(chapterSelect, ['隨機選擇', ...chapters], true); chapterSelectContainer.style.display = 'block'; } catch (e) { console.error("讀取監獄行刑法 manifest 失敗:", e); alert("讀取監獄行刑法之章節清單失敗！"); } } }
-        else if (selectedSubject === '監獄學') { const prisonScienceModes = ['歷屆試題120題', '參考書927題']; populateDropdown(modeSelect, prisonScienceModes); if (prisonScienceModes.includes(currentModeValue)) modeSelect.value = currentModeValue; }
-        else if (selectedSubject === '犯罪學') { const criminologyModes = ['歷屆試題120題', '參考書1304題', '重點整理']; populateDropdown(modeSelect, criminologyModes); if (criminologyModes.includes(currentModeValue)) modeSelect.value = currentModeValue; if (modeSelect.value === '重點整理') { const summaryTopics = ['犯罪學心智圖', '理論與學者配對']; populateDropdown(chapterSelect, summaryTopics); chapterSelectContainer.style.display = 'block'; } }
-        else { populateDropdown(modeSelect, ['隨機出題']); }
-    }
-    
-    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { const currentValue = selectElement.value; selectElement.innerHTML = ''; optionsArray.forEach((optionText, index) => { const option = document.createElement('option'); const isFirstOption = (index === 0); const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText; option.value = value; option.textContent = optionText; selectElement.appendChild(option); }); if (Array.from(selectElement.options).some(opt => opt.value === currentValue)) { selectElement.value = currentValue; } }
+    function setupInitialScreen() { /* ...維持不變... */ }
+    async function updateModeAndChapterSelectors() { /* ...維持不變... */ }
+    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { /* ...維持不變... */ }
 
+    // --- 修改 --- : 加入顯示 DOCX 的判斷邏輯
     async function startQuiz() {
         const selectedSubject = subjectSelect.value;
         const selectedMode = modeSelect.value;
         const selectedChapter = chapterSelect.value;
         
         if (selectedSubject === '犯罪學' && selectedMode === '重點整理') {
-            if (selectedChapter === '犯罪學心智圖') {
-                showPdfViewerWithPdfJs('犯罪學/各學派.pdf'); return;
-            } else if (selectedChapter === '理論與學者配對') {
-                showPdfViewerWithPdfJs('犯罪學/理論配對.pdf'); return;
+            if (selectedChapter === '理論與學者配對') {
+                showDocxViewer('犯罪學/理論配對.docx');
+                return;
             }
         }
         
@@ -131,26 +115,60 @@
         }
     }
     
-    function showPdfViewerWithPdfJs(pdfPath) {
+    // --- 新增 --- : 使用 Mammoth.js 顯示 DOCX 內容的函式
+    function showDocxViewer(docxPath) {
         setupContainer.style.display = 'none';
-        quizContainer.innerHTML = ` <div> <div class="pdf-viewer-nav"> <button class="pdf-return-btn" style="width: auto;">返回選單</button> <div> <button id="pdf-prev">上一頁</button> <span id="pdf-page-num"></span> / <span id="pdf-page-count"></span> <button id="pdf-next">下一頁</button> </div> </div> <div id="pdf-canvas-container"> <canvas id="pdf-canvas"></canvas> </div> </div> `;
-        quizContainer.querySelector('.pdf-return-btn').addEventListener('click', returnToSetupScreen);
-        const canvas = document.getElementById('pdf-canvas'), ctx = canvas.getContext('2d'), pageNumSpan = document.getElementById('pdf-page-num'), pageCountSpan = document.getElementById('pdf-page-count'), prevBtn = document.getElementById('pdf-prev'), nextBtn = document.getElementById('pdf-next');
-        pdfDoc = null; pageNum = 1; pageIsRendering = false; pageNumIsPending = null;
-        const renderPage = num => { pageIsRendering = true; pdfDoc.getPage(num).then(page => { const viewport = page.getViewport({ scale: 1.5 }); canvas.height = viewport.height; canvas.width = viewport.width; const renderCtx = { canvasContext: ctx, viewport }; page.render(renderCtx).promise.then(() => { pageIsRendering = false; if (pageNumIsPending !== null) { renderPage(pageNumIsPending); pageNumIsPending = null; } }); pageNumSpan.textContent = num; prevBtn.disabled = num <= 1; nextBtn.disabled = num >= pdfDoc.numPages; }); };
-        const queueRenderPage = num => { if (pageIsRendering) { pageNumIsPending = num; } else { renderPage(num); } };
-        const onPrevPage = () => { if (pageNum <= 1) return; pageNum--; queueRenderPage(pageNum); };
-        const onNextPage = () => { if (pageNum >= pdfDoc.numPages) return; pageNum++; queueRenderPage(pageNum); };
-        prevBtn.addEventListener('click', onPrevPage);
-        nextBtn.addEventListener('click', onNextPage);
-        pdfjsLib.getDocument(pdfPath).promise.then(doc => { pdfDoc = doc; pageCountSpan.textContent = pdfDoc.numPages; renderPage(pageNum); }).catch(err => { console.error('讀取 PDF 檔案時出錯', err); alert('無法載入 PDF 檔案。'); returnToSetupScreen(); });
+        quizContainer.innerHTML = `
+            <div>
+                <button class="return-btn">返回選單</button>
+                <div id="docx-content">正在載入文件...</div>
+            </div>
+        `;
+        quizContainer.querySelector('.return-btn').addEventListener('click', returnToSetupScreen);
+        
+        const contentContainer = document.getElementById('docx-content');
+
+        // 1. 使用 fetch 讀取 docx 檔案的二進位內容
+        fetch(docxPath)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`檔案 ${docxPath} 讀取失敗`);
+                }
+                return response.arrayBuffer(); // 取得 ArrayBuffer
+            })
+            .then(arrayBuffer => {
+                // 2. 使用 mammoth.js 將 ArrayBuffer 轉換成 HTML
+                mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+                    .then(result => {
+                        // 3. 將轉換後的 HTML 顯示在頁面上
+                        contentContainer.innerHTML = result.value; 
+                        // result.messages 包含轉換過程中的任何警告訊息
+                        if (result.messages.length > 0) {
+                            console.warn("Mammoth.js 轉換訊息:", result.messages);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Mammoth.js 轉換失敗:", err);
+                        contentContainer.innerHTML = "<p>文件轉換失敗，檔案可能已損毀或格式不相容。</p>";
+                    });
+            })
+            .catch(err => {
+                console.error("讀取 DOCX 檔案時出錯:", err);
+                alert(`無法載入文件: ${err.message}`);
+                returnToSetupScreen();
+            });
+
         quizContainer.style.display = 'block';
     }
-    
+
+    // 以下為無需修改的函式，為保持簡潔，將內容縮起
+    function setupInitialScreen() { populateDropdown(subjectSelect, subjects.map(s => s.name)); const savedSubject = localStorage.getItem('selectedSubject'); if (savedSubject) subjectSelect.value = savedSubject; updateModeAndChapterSelectors(); const savedQuantity = localStorage.getItem('selectedQuantity'); if (savedQuantity) questionQuantitySelect.value = savedQuantity; subjectSelect.addEventListener("change", updateModeAndChapterSelectors); modeSelect.addEventListener("change", updateModeAndChapterSelectors); startQuizBtn.addEventListener("click", startQuiz); }
+    async function updateModeAndChapterSelectors() { const selectedSubject = subjectSelect.value; const currentModeValue = modeSelect.value; chapterSelectContainer.style.display = 'none'; if (selectedSubject === '刑法') { const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ]; populateDropdown(modeSelect, criminalLawModes); if (criminalLawModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '總則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } else if (newModeValue === '分則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } } else if (selectedSubject === '監獄行刑法') { const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(歷屆+模擬)', '本法與子法']; populateDropdown(modeSelect, prisonActModes); if (prisonActModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '本法與子法') { try { const manifest = await fetchJson('監獄行刑法/manifest.json'); const chapters = manifest.files.map(file => file.replace('.json', '')); populateDropdown(chapterSelect, ['隨機選擇', ...chapters], true); chapterSelectContainer.style.display = 'block'; } catch (e) { console.error("讀取監獄行刑法 manifest 失敗:", e); alert("讀取監獄行刑法之章節清單失敗！"); } } } else if (selectedSubject === '監獄學') { const prisonScienceModes = ['歷屆試題120題', '參考書927題']; populateDropdown(modeSelect, prisonScienceModes); if (prisonScienceModes.includes(currentModeValue)) modeSelect.value = currentModeValue; } else if (selectedSubject === '犯罪學') { const criminologyModes = ['歷屆試題120題', '參考書1304題', '重點整理']; populateDropdown(modeSelect, criminologyModes); if (criminologyModes.includes(currentModeValue)) modeSelect.value = currentModeValue; if (modeSelect.value === '重點整理') { const summaryTopics = ['犯罪學心智圖', '理論與學者配對']; populateDropdown(chapterSelect, summaryTopics); chapterSelectContainer.style.display = 'block'; } } else { populateDropdown(modeSelect, ['隨機出題']); } }
+    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { const currentValue = selectElement.value; selectElement.innerHTML = ''; optionsArray.forEach((optionText, index) => { const option = document.createElement('option'); const isFirstOption = (index === 0); const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText; option.value = value; option.textContent = optionText; selectElement.appendChild(option); }); if (Array.from(selectElement.options).some(opt => opt.value === currentValue)) { selectElement.value = currentValue; } }
     async function fetchJson(path) { console.log(`讀取檔案: ${path}`); const response = await fetch(path); if (!response.ok) throw new Error(`檔案 ${path} 讀取失敗`); return response.json(); }
     async function fetchMultipleJsonAsGroups(paths) { console.log(`正在分組讀取 ${paths.length} 個檔案...`); const responses = await Promise.all(paths.map(path => fetch(path))); for (const response of responses) { if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`); } const jsonDataArrays = await Promise.all(responses.map(res => res.json())); const groupedData = {}; paths.forEach((path, index) => { const key = path.split('/').pop(); groupedData[key] = jsonDataArrays[index]; }); return groupedData; }
     function initializeQuiz(questionsData, isNewQuiz = false, isGrouped = false) { renderQuizUI(); isInReviewMode = false; let questionsSource = []; if (isNewQuiz) { if (isGrouped) { const availableQuestions = JSON.parse(JSON.stringify(questionsData)); const chapters = Object.keys(availableQuestions).filter(key => availableQuestions[key].length > 0); const requestedQty = parseInt(questionQuantitySelect.value, 10); let finalQuizQuestions = []; for (const chapterName of chapters) { const questionsInChapter = availableQuestions[chapterName]; if (questionsInChapter.length > 0) { const randomIndex = Math.floor(Math.random() * questionsInChapter.length); const pickedQuestion = questionsInChapter.splice(randomIndex, 1)[0]; finalQuizQuestions.push(pickedQuestion); } } const numRemainingNeeded = requestedQty - finalQuizQuestions.length; if (numRemainingNeeded > 0) { const remainderPool = Object.values(availableQuestions).flat(); shuffleArray(remainderPool); const extraQuestions = remainderPool.slice(0, numRemainingNeeded); finalQuizQuestions.push(...extraQuestions); } questionsSource = finalQuizQuestions; if(questionsSource.length > requestedQty) { shuffleArray(questionsSource); questionsSource = questionsSource.slice(0, requestedQty); } } else { questionsSource = JSON.parse(JSON.stringify(questionsData)); shuffleArray(questionsSource); const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10); if (questionsSource.length > selectedMaxQuestions) { questionsSource = questionsSource.slice(0, selectedMaxQuestions); } } questionsSource.forEach(q => { q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null }; delete q.shuffledOptions; }); } shuffleArray(questionsSource); currentQuestions = questionsSource; currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0; showQuestion(); }
-    function renderQuizUI() { quizContainer.innerHTML = ` <div id="quiz-area"> <div class="question-box" id="question-box"></div> <div id="result" style="display: none;"></div> </div> <div id="score"></div> <div class="button-group"> <button id="prev-btn" disabled>上一題</button> <button id="explanation-btn" disabled>看解析</button> <button id="next-btn" disabled>下一題</button> <button id="calculate-btn" disabled style="display: none;">結算</button> <button id="reset-btn">返回選單</button> </div> `; endQuizModal.innerHTML = ` <div class="modal-content"> <h3>測驗結束！</h3> <p id="modal-score-summary"></p> <div class="modal-buttons"> <button id="review-all-btn">查看完整試卷</button> <button id="review-wrong-btn">錯題檢討</button> <button id="finish-quiz-btn">返回選單</button> </div> </div> `; const prevBtn = document.getElementById("prev-btn"), explanationBtn = document.getElementById("explanation-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), reviewAllBtn = document.getElementById("review-all-btn"), reviewWrongBtn = document.getElementById("review-wrong-btn"), finishQuizBtn = document.getElementById("finish-quiz-btn"), quizArea = document.getElementById("quiz-area"); prevBtn.addEventListener("click", previousQuestion); explanationBtn.addEventListener("click", toggleExplanation); nextBtn.addEventListener("click", nextQuestion); calculateBtn.addEventListener("click", showEndQuizModal); resetBtn.addEventListener("click", returnToSetupScreen); reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(currentQuestions); }); reviewWrongBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect); if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; } initializeQuiz(wrongQuestions, true); }); finishQuizBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; returnToSetupScreen(); }); quizArea.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true }); quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true }); }
+    function renderQuizUI() { quizContainer.innerHTML = ` <div id="quiz-area"> <div class="question-box" id="question-box"></div> <div id="result" style="display: none;"></div> </div> <div id="score"></div> <div class="button-group"> <button id="prev-btn" disabled>上一題</button> <button id="explanation-btn" disabled>看解析</button> <button id="next-btn" disabled>下一題</button> <button id="calculate-btn" disabled style="display: none;">結算</button> <button id="reset-btn" class="return-btn">返回選單</button> </div> `; endQuizModal.innerHTML = ` <div class="modal-content"> <h3>測驗結束！</h3> <p id="modal-score-summary"></p> <div class="modal-buttons"> <button id="review-all-btn">查看完整試卷</button> <button id="review-wrong-btn">錯題檢討</button> <button id="finish-quiz-btn">返回選單</button> </div> </div> `; const prevBtn = document.getElementById("prev-btn"), explanationBtn = document.getElementById("explanation-btn"), nextBtn = document.getElementById("next-btn"), calculateBtn = document.getElementById("calculate-btn"), resetBtn = document.getElementById("reset-btn"), reviewAllBtn = document.getElementById("review-all-btn"), reviewWrongBtn = document.getElementById("review-wrong-btn"), finishQuizBtn = document.getElementById("finish-quiz-btn"), quizArea = document.getElementById("quiz-area"); prevBtn.addEventListener("click", previousQuestion); explanationBtn.addEventListener("click", toggleExplanation); nextBtn.addEventListener("click", nextQuestion); calculateBtn.addEventListener("click", showEndQuizModal); resetBtn.addEventListener("click", returnToSetupScreen); reviewAllBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; startReviewMode(currentQuestions); }); reviewWrongBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; const wrongQuestions = currentQuestions.filter(q => q.userAttempt && !q.userAttempt.wasCorrect); if (wrongQuestions.length === 0) { alert("恭喜您，全部答對！沒有錯題可以檢討。"); returnToSetupScreen(); return; } initializeQuiz(wrongQuestions, true); }); finishQuizBtn.addEventListener('click', () => { endQuizModal.style.display = 'none'; returnToSetupScreen(); }); quizArea.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true }); quizArea.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleGesture(); }, { passive: true }); }
     function showQuestion() { const questionBox = document.getElementById("question-box"), result = document.getElementById("result"); result.style.display = 'none'; document.getElementById("explanation-btn").textContent = "看解析"; if(!isInReviewMode) updateScore(); if (!currentQuestions || currentQuestions.length === 0) { questionBox.innerHTML = "<p>此科目沒有題目。</p>"; return; } questionBox.innerHTML = ""; const q = currentQuestions[currentQuestionIndex]; const questionEl = document.createElement("div"); questionEl.innerHTML = `<strong>Q${currentQuestionIndex + 1}：</strong>${q.question}`; questionBox.appendChild(questionEl); let optionsContainer = document.createElement("div"); optionsContainer.id = "options-container"; questionBox.appendChild(optionsContainer); if (!q.shuffledOptions) { q.shuffledOptions = [...q.options]; shuffleArray(q.shuffledOptions); } q.shuffledOptions.forEach((optionText) => { const optionDiv = document.createElement("div"); optionDiv.className = "option"; optionDiv.textContent = optionText; optionDiv.dataset.originalText = optionText; optionsContainer.appendChild(optionDiv); optionDiv.addEventListener("click", () => handleOptionClick(optionDiv)); }); updateButtonStates(); if (q.userAttempt.answered) { showAnswerResult(); } }
     function handleOptionClick(selectedDiv) { if (isInReviewMode) return; const q = currentQuestions[currentQuestionIndex]; const currentTime = new Date().getTime(); const timeSinceLastTap = currentTime - lastTapTime; if (timeSinceLastTap < 300 && timeSinceLastTap > 0 && lastTapTarget === selectedDiv && q.userAttempt.answered && q.userAttempt.wasCorrect) { lastTapTime = 0; lastTapTarget = null; if (currentQuestionIndex < currentQuestions.length - 1) { nextQuestion(); } else { showEndQuizModal(); } return; } lastTapTime = currentTime; lastTapTarget = selectedDiv; if (q.userAttempt.answered) { return; } const originalOptionText = selectedDiv.dataset.originalText; q.userAttempt.answered = true; const chosenIndex = q.options.indexOf(originalOptionText); q.userAttempt.choiceIndex = chosenIndex; q.userAttempt.wasCorrect = (chosenIndex === q.answer); if (q.userAttempt.wasCorrect) { correctCount++; scorePoints += (100 / currentQuestions.length); } else { wrongCount++; } completedCount++; showAnswerResult(); updateScore(); updateButtonStates(); }
     function showAnswerResult() { const q = currentQuestions[currentQuestionIndex]; const optionsContainer = document.getElementById("options-container"); if (!optionsContainer) return; Array.from(optionsContainer.children).forEach(el => { const originalText = el.dataset.originalText; const originalIndexOfEl = q.options.indexOf(originalText); if (originalIndexOfEl === q.answer) { el.classList.add("correct"); } if (originalIndexOfEl === q.userAttempt.choiceIndex && !q.userAttempt.wasCorrect) { el.classList.add("incorrect"); } }); }
