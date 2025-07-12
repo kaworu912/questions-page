@@ -29,24 +29,22 @@
     .modal-content h3 { margin-top: 0; }
     .modal-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
     .modal-buttons button { padding: 10px 20px; font-size: 16px; }
-    /* --- 新增 --- : DOCX 內容顯示區塊的樣式 */
-    #docx-content {
+    /* --- 新增/修改 --- : 內容顯示區塊的樣式 */
+    .content-viewer {
         border: 1px solid #ccc;
         padding: 15px;
         margin-top: 10px;
         background-color: white;
-        height: calc(100vh - 150px);
+        height: calc(100vh - 120px);
         overflow-y: auto;
     }
-    #docx-content table { border-collapse: collapse; width: 100%; }
-    #docx-content th, #docx-content td { border: 1px solid #ddd; padding: 8px; }
-    #docx-content th { background-color: #f2f2f2; }
-
+    .content-viewer h3 { margin-top: 0; }
+    .content-viewer table { border-collapse: collapse; width: 100%; }
+    .content-viewer th, .content-viewer td { border: 1px solid #ddd; padding: 8px; }
+    .content-viewer th { background-color: #f2f2f2; }
   </style>
 
-  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
-
-</head>
+  </head>
 <body>
 
   <div id="setup-container">
@@ -61,7 +59,7 @@
   <div id="end-quiz-modal" class="modal-overlay"></div>
 
   <script>
-    // --- 已移除所有 PDF 相關變數和設定 ---
+    // --- 刪除 --- : 已不再需要 PDF.js 的相關變數
     const subjects = [ { name: "刑法", file: "刑法.json" }, { name: "監獄行刑法", file: "監獄行刑法(歷屆試題).json" }, { name: "法學緒論", file: "法學緒論.json" }, { name: "犯罪學", file: "犯罪學.json" }, { name: "監獄學", file: "監獄學.json" } ];
     const generalProvisionsChapters = [ "第一章 法例", "第二章 刑事責任", "第三章 未遂犯", "第四章 正犯與共犯", "第五章 刑", "第五章之一 沒收", "第五章之二 易刑", "第六章 累犯", "第七章 數罪併罰", "第八章 刑之酌科及加減", "第九章 緩刑", "第十章 假釋", "第十一章 時效", "第十二章 保安處分" ];
     const specificProvisionsChapters = [ "第一章 內亂罪", "第二章 外患罪", "第三章 妨害國交罪", "第四章 瀆職罪", "第五章 妨害公務罪", "第五章之一 藐視國會罪", "第六章 妨害投票罪", "第七章 妨害秩序罪", "第八章 脫逃罪", "第九章 藏匿人犯及湮滅證據罪", "第十章 偽證及誣告罪", "第十章之一 妨害司法公正罪", "第十一章 公共危險罪", "第十二章 偽造貨幣罪", "第十三章 偽造有價證券罪", "第十四章 偽造度量衡罪", "第十五章 偽造文書印文罪", "第十六章 妨害性自主罪", "第十六章之一 妨害風化罪", "第十七章 妨害婚姻及家庭罪", "第十八章 褻瀆祀典及侵害墳墓屍體罪", "第十九章 妨害農工商罪", "第二十章 鴉片罪", "第二十一章 賭博罪", "第二十二章 殺人罪", "第二十三章 傷害罪", "第二十四章 墮胎罪", "第二十五章 遺棄罪", "第二十六章 妨害自由罪", "第二十七章 妨害名譽及信用罪", "第二十八章 妨害秘密罪", "第二十八章之一 妨害性隱私及不實性影像罪", "第二十九章 竊盜罪", "第三十章 搶奪強盜及海盜罪", "第三十一章 侵占罪", "第三十二章 詐欺背信及重利罪", "第三十三章 恐嚇及擄人勒贖罪", "第三十四章 贓物罪", "第三十五章 毀棄損壞罪", "第三十六章 妨害電腦使用罪" ];
@@ -75,21 +73,27 @@
 
     document.addEventListener('DOMContentLoaded', setupInitialScreen);
     
-    function setupInitialScreen() { /* ...維持不變... */ }
-    async function updateModeAndChapterSelectors() { /* ...維持不變... */ }
-    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { /* ...維持不變... */ }
+    // --- 以下為主要函式，已更新 ---
+    function setupInitialScreen() { populateDropdown(subjectSelect, subjects.map(s => s.name)); const savedSubject = localStorage.getItem('selectedSubject'); if (savedSubject) subjectSelect.value = savedSubject; updateModeAndChapterSelectors(); const savedQuantity = localStorage.getItem('selectedQuantity'); if (savedQuantity) questionQuantitySelect.value = savedQuantity; subjectSelect.addEventListener("change", updateModeAndChapterSelectors); modeSelect.addEventListener("change", updateModeAndChapterSelectors); startQuizBtn.addEventListener("click", startQuiz); }
+    async function updateModeAndChapterSelectors() { const selectedSubject = subjectSelect.value; const currentModeValue = modeSelect.value; chapterSelectContainer.style.display = 'none'; if (selectedSubject === '刑法') { const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ]; populateDropdown(modeSelect, criminalLawModes); if (criminalLawModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '總則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } else if (newModeValue === '分則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } } else if (selectedSubject === '監獄行刑法') { const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(歷屆+模擬)', '本法與子法']; populateDropdown(modeSelect, prisonActModes); if (prisonActModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '本法與子法') { try { const manifest = await fetchJson('監獄行刑法/manifest.json'); const chapters = manifest.files.map(file => file.replace('.json', '')); populateDropdown(chapterSelect, ['隨機選擇', ...chapters], true); chapterSelectContainer.style.display = 'block'; } catch (e) { console.error("讀取監獄行刑法 manifest 失敗:", e); alert("讀取監獄行刑法之章節清單失敗！"); } } } else if (selectedSubject === '監獄學') { const prisonScienceModes = ['歷屆試題120題', '參考書927題']; populateDropdown(modeSelect, prisonScienceModes); if (prisonScienceModes.includes(currentModeValue)) modeSelect.value = currentModeValue; } else if (selectedSubject === '犯罪學') { const criminologyModes = ['歷屆試題120題', '參考書1304題', '重點整理']; populateDropdown(modeSelect, criminologyModes); if (criminologyModes.includes(currentModeValue)) modeSelect.value = currentModeValue; if (modeSelect.value === '重點整理') { const summaryTopics = ['犯罪學心智圖', '理論與學者配對']; populateDropdown(chapterSelect, summaryTopics); chapterSelectContainer.style.display = 'block'; } } else { populateDropdown(modeSelect, ['隨機出題']); } }
+    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { const currentValue = selectElement.value; selectElement.innerHTML = ''; optionsArray.forEach((optionText, index) => { const option = document.createElement('option'); const isFirstOption = (index === 0); const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText; option.value = value; option.textContent = optionText; selectElement.appendChild(option); }); if (Array.from(selectElement.options).some(opt => opt.value === currentValue)) { selectElement.value = currentValue; } }
 
-    // --- 修改 --- : 加入顯示 DOCX 的判斷邏輯
     async function startQuiz() {
         const selectedSubject = subjectSelect.value;
         const selectedMode = modeSelect.value;
         const selectedChapter = chapterSelect.value;
         
+        // --- 修改 --- : 將 DOCX/PDF 顯示邏輯改為 HTML 顯示邏輯
         if (selectedSubject === '犯罪學' && selectedMode === '重點整理') {
             if (selectedChapter === '理論與學者配對') {
-                showDocxViewer('犯罪學/理論配對.docx');
+                showHtmlContentViewer('犯罪學/理論配對.html');
                 return;
             }
+            // 您也可以為「犯罪學心智圖」設定一個對應的 .html 檔案
+            // else if (selectedChapter === '犯罪學心智圖') {
+            //     showHtmlContentViewer('犯罪學/犯罪學心智圖.html');
+            //     return;
+            // }
         }
         
         setupContainer.style.display = 'none';
@@ -99,6 +103,7 @@
         try {
             let questionsData; 
             let isGrouped = false;
+            // 以下測驗題庫讀取邏輯維持不變
             if (selectedSubject === '刑法') { const manifest = await fetchJson('刑法/manifest.json'); if (selectedMode === '隨機出題(歷屆試題300題)') { questionsData = await fetchJson(subjectInfo.file); isGrouped = false; } else if (selectedMode === '隨機出題(歷屆+模擬)') { const pastExamPromise = fetchJson(subjectInfo.file); const generalPaths = manifest.總則.map(file => `刑法/總則/${file}`); const specificPaths = manifest.分則.map(file => `刑法/分則/${file}`); const generalPromise = fetchMultipleJsonAsGroups(generalPaths); const specificPromise = fetchMultipleJsonAsGroups(specificPaths); const [pastExamQuestions, generalQuestions, specificQuestions] = await Promise.all([ pastExamPromise, generalPromise, specificPromise ]); questionsData = { '歷屆試題': pastExamQuestions, ...generalQuestions, ...specificQuestions }; isGrouped = true; } else if (selectedMode === '總則(模擬)') { if (selectedChapter === 'random') { const generalPaths = manifest.總則.map(file => `刑法/總則/${file}`); questionsData = await fetchMultipleJsonAsGroups(generalPaths); isGrouped = true; } else { questionsData = await fetchJson(`刑法/總則/${selectedChapter}.json`); isGrouped = false; } } else if (selectedMode === '分則(模擬)') { if (selectedChapter === 'random') { const specificPaths = manifest.分則.map(file => `刑法/分則/${file}`); questionsData = await fetchMultipleJsonAsGroups(specificPaths); isGrouped = true; } else { questionsData = await fetchJson(`刑法/分則/${selectedChapter}.json`); isGrouped = false; } } }
             else if (selectedSubject === '監獄行刑法') { if (selectedMode === '隨機出題(歷屆試題259題)') { questionsData = await fetchJson(subjectInfo.file); isGrouped = false; } else if (selectedMode === '隨機出題(歷屆+模擬)') { const manifest = await fetchJson('監獄行刑法/manifest.json'); const pastExamPromise = fetchJson(subjectInfo.file); const mockPaths = manifest.files.map(file => `監獄行刑法/${file}`); const mockPromise = fetchMultipleJsonAsGroups(mockPaths); const [pastExamQuestions, mockQuestions] = await Promise.all([pastExamPromise, mockPromise]); questionsData = { '歷屆試題': pastExamQuestions, ...mockQuestions }; isGrouped = true; } else if (selectedMode === '本法與子法') { if (selectedChapter === 'random') { const manifest = await fetchJson('監獄行刑法/manifest.json'); const paths = manifest.files.map(file => `監獄行刑法/${file}`); questionsData = await fetchMultipleJsonAsGroups(paths); isGrouped = true; } else { questionsData = await fetchJson(`監獄行刑法/${selectedChapter}.json`); isGrouped = false; } } }
             else if (selectedSubject === '監獄學') { if (selectedMode === '歷屆試題120題') { questionsData = await fetchJson('監獄學/監獄學(歷屆試題).json'); isGrouped = false; } else if (selectedMode === '參考書927題') { questionsData = await fetchJson('監獄學/監獄學927.json'); isGrouped = false; } }
@@ -115,56 +120,54 @@
         }
     }
     
-    // --- 新增 --- : 使用 Mammoth.js 顯示 DOCX 內容的函式
-    function showDocxViewer(docxPath) {
+    // --- 新增 --- : 讀取並顯示 HTML 內容的函式
+    async function showHtmlContentViewer(htmlPath) {
         setupContainer.style.display = 'none';
         quizContainer.innerHTML = `
             <div>
                 <button class="return-btn">返回選單</button>
-                <div id="docx-content">正在載入文件...</div>
+                <div class="content-viewer">正在載入內容...</div>
             </div>
         `;
         quizContainer.querySelector('.return-btn').addEventListener('click', returnToSetupScreen);
         
-        const contentContainer = document.getElementById('docx-content');
+        const contentContainer = quizContainer.querySelector('.content-viewer');
 
-        // 1. 使用 fetch 讀取 docx 檔案的二進位內容
-        fetch(docxPath)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`檔案 ${docxPath} 讀取失敗`);
-                }
-                return response.arrayBuffer(); // 取得 ArrayBuffer
-            })
-            .then(arrayBuffer => {
-                // 2. 使用 mammoth.js 將 ArrayBuffer 轉換成 HTML
-                mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
-                    .then(result => {
-                        // 3. 將轉換後的 HTML 顯示在頁面上
-                        contentContainer.innerHTML = result.value; 
-                        // result.messages 包含轉換過程中的任何警告訊息
-                        if (result.messages.length > 0) {
-                            console.warn("Mammoth.js 轉換訊息:", result.messages);
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Mammoth.js 轉換失敗:", err);
-                        contentContainer.innerHTML = "<p>文件轉換失敗，檔案可能已損毀或格式不相容。</p>";
-                    });
-            })
-            .catch(err => {
-                console.error("讀取 DOCX 檔案時出錯:", err);
-                alert(`無法載入文件: ${err.message}`);
-                returnToSetupScreen();
-            });
+        try {
+            const response = await fetch(htmlPath);
+            if (!response.ok) {
+                throw new Error(`檔案 ${htmlPath} 讀取失敗`);
+            }
+            const htmlContent = await response.text();
+            contentContainer.innerHTML = htmlContent;
+        } catch (error) {
+            console.error("讀取 HTML 內容失敗:", error);
+            contentContainer.innerHTML = `<p>讀取內容失敗，請確認檔案路徑是否正確。</p>`;
+        }
 
         quizContainer.style.display = 'block';
     }
 
-    // 以下為無需修改的函式，為保持簡潔，將內容縮起
+    async function fetchJson(path) { /* ...維持不變... */ }
+    async function fetchMultipleJsonAsGroups(paths) { /* ...維持不變... */ }
+    function initializeQuiz(questionsData, isNewQuiz = false, isGrouped = false) { /* ...維持不變... */ }
+    function renderQuizUI() { /* ...維持不變... */ }
+    function showQuestion() { /* ...維持不變... */ }
+    function handleOptionClick(selectedDiv) { /* ...維持不變... */ }
+    function showAnswerResult() { /* ...維持不變... */ }
+    function returnToSetupScreen() { /* ...維持不變... */ }
+    function updateButtonStates() { /* ...維持不變... */ }
+    function startReviewMode(questions) { /* ...維持不變... */ }
+    function showEndQuizModal() { /* ...維持不變... */ }
+    function toggleExplanation() { /* ...維持不變... */ }
+    function nextQuestion() { /* ...維持不變... */ }
+    function previousQuestion() { /* ...維持不變... */ }
+    function handleGesture() { /* ...維持不變... */ }
+    function updateScore() { /* ...維持不變... */ }
+    function shuffleArray(array) { /* ...維持不變... */ }
+
+    // --- 為維持程式碼簡潔，將不變的函式內容縮起 ---
     function setupInitialScreen() { populateDropdown(subjectSelect, subjects.map(s => s.name)); const savedSubject = localStorage.getItem('selectedSubject'); if (savedSubject) subjectSelect.value = savedSubject; updateModeAndChapterSelectors(); const savedQuantity = localStorage.getItem('selectedQuantity'); if (savedQuantity) questionQuantitySelect.value = savedQuantity; subjectSelect.addEventListener("change", updateModeAndChapterSelectors); modeSelect.addEventListener("change", updateModeAndChapterSelectors); startQuizBtn.addEventListener("click", startQuiz); }
-    async function updateModeAndChapterSelectors() { const selectedSubject = subjectSelect.value; const currentModeValue = modeSelect.value; chapterSelectContainer.style.display = 'none'; if (selectedSubject === '刑法') { const criminalLawModes = [ '隨機出題(歷屆試題300題)', '隨機出題(歷屆+模擬)', '總則(模擬)', '分則(模擬)' ]; populateDropdown(modeSelect, criminalLawModes); if (criminalLawModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '總則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...generalProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } else if (newModeValue === '分則(模擬)') { populateDropdown(chapterSelect, ['隨機出題', ...specificProvisionsChapters], true); chapterSelectContainer.style.display = 'block'; } } else if (selectedSubject === '監獄行刑法') { const prisonActModes = ['隨機出題(歷屆試題259題)', '隨機出題(歷屆+模擬)', '本法與子法']; populateDropdown(modeSelect, prisonActModes); if (prisonActModes.includes(currentModeValue)) modeSelect.value = currentModeValue; const newModeValue = modeSelect.value; if (newModeValue === '本法與子法') { try { const manifest = await fetchJson('監獄行刑法/manifest.json'); const chapters = manifest.files.map(file => file.replace('.json', '')); populateDropdown(chapterSelect, ['隨機選擇', ...chapters], true); chapterSelectContainer.style.display = 'block'; } catch (e) { console.error("讀取監獄行刑法 manifest 失敗:", e); alert("讀取監獄行刑法之章節清單失敗！"); } } } else if (selectedSubject === '監獄學') { const prisonScienceModes = ['歷屆試題120題', '參考書927題']; populateDropdown(modeSelect, prisonScienceModes); if (prisonScienceModes.includes(currentModeValue)) modeSelect.value = currentModeValue; } else if (selectedSubject === '犯罪學') { const criminologyModes = ['歷屆試題120題', '參考書1304題', '重點整理']; populateDropdown(modeSelect, criminologyModes); if (criminologyModes.includes(currentModeValue)) modeSelect.value = currentModeValue; if (modeSelect.value === '重點整理') { const summaryTopics = ['犯罪學心智圖', '理論與學者配對']; populateDropdown(chapterSelect, summaryTopics); chapterSelectContainer.style.display = 'block'; } } else { populateDropdown(modeSelect, ['隨機出題']); } }
-    function populateDropdown(selectElement, optionsArray, useRandomForFirst = false) { const currentValue = selectElement.value; selectElement.innerHTML = ''; optionsArray.forEach((optionText, index) => { const option = document.createElement('option'); const isFirstOption = (index === 0); const value = (useRandomForFirst && isFirstOption) ? 'random' : optionText; option.value = value; option.textContent = optionText; selectElement.appendChild(option); }); if (Array.from(selectElement.options).some(opt => opt.value === currentValue)) { selectElement.value = currentValue; } }
     async function fetchJson(path) { console.log(`讀取檔案: ${path}`); const response = await fetch(path); if (!response.ok) throw new Error(`檔案 ${path} 讀取失敗`); return response.json(); }
     async function fetchMultipleJsonAsGroups(paths) { console.log(`正在分組讀取 ${paths.length} 個檔案...`); const responses = await Promise.all(paths.map(path => fetch(path))); for (const response of responses) { if (!response.ok) throw new Error(`檔案 ${response.url} 讀取失敗`); } const jsonDataArrays = await Promise.all(responses.map(res => res.json())); const groupedData = {}; paths.forEach((path, index) => { const key = path.split('/').pop(); groupedData[key] = jsonDataArrays[index]; }); return groupedData; }
     function initializeQuiz(questionsData, isNewQuiz = false, isGrouped = false) { renderQuizUI(); isInReviewMode = false; let questionsSource = []; if (isNewQuiz) { if (isGrouped) { const availableQuestions = JSON.parse(JSON.stringify(questionsData)); const chapters = Object.keys(availableQuestions).filter(key => availableQuestions[key].length > 0); const requestedQty = parseInt(questionQuantitySelect.value, 10); let finalQuizQuestions = []; for (const chapterName of chapters) { const questionsInChapter = availableQuestions[chapterName]; if (questionsInChapter.length > 0) { const randomIndex = Math.floor(Math.random() * questionsInChapter.length); const pickedQuestion = questionsInChapter.splice(randomIndex, 1)[0]; finalQuizQuestions.push(pickedQuestion); } } const numRemainingNeeded = requestedQty - finalQuizQuestions.length; if (numRemainingNeeded > 0) { const remainderPool = Object.values(availableQuestions).flat(); shuffleArray(remainderPool); const extraQuestions = remainderPool.slice(0, numRemainingNeeded); finalQuizQuestions.push(...extraQuestions); } questionsSource = finalQuizQuestions; if(questionsSource.length > requestedQty) { shuffleArray(questionsSource); questionsSource = questionsSource.slice(0, requestedQty); } } else { questionsSource = JSON.parse(JSON.stringify(questionsData)); shuffleArray(questionsSource); const selectedMaxQuestions = parseInt(questionQuantitySelect.value, 10); if (questionsSource.length > selectedMaxQuestions) { questionsSource = questionsSource.slice(0, selectedMaxQuestions); } } questionsSource.forEach(q => { q.userAttempt = { answered: false, choiceIndex: null, wasCorrect: null }; delete q.shuffledOptions; }); } shuffleArray(questionsSource); currentQuestions = questionsSource; currentQuestionIndex = 0; correctCount = 0; wrongCount = 0; scorePoints = 0; completedCount = 0; showQuestion(); }
